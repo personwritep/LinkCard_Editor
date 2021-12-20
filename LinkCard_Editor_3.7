@@ -1,0 +1,1407 @@
+// ==UserScript==
+// @name         LinkCard Editor ⭐
+// @namespace    http://tampermonkey.net/
+// @version      3.7
+// @description  通常表示でリンクカードを編集 「Ctrl+F6」
+// @author       Ameba Blog User
+// @match        https://blog.ameba.jp/ucs/entry/srventry*
+// @exclude      https://blog.ameba.jp/ucs/entry/srventrylist.do*
+// @grant         none
+// ==/UserScript==
+
+
+let mode=0; // ツールのON/OFF
+let mode_e=0; // テキスト編集モード（enhance）
+let mode_c=0; // サブコントロール
+
+let retry=0;
+let interval=setInterval(wait_target, 100);
+function wait_target(){
+    retry++;
+    if(retry>10){
+        clearInterval(interval); }
+    let target=document.querySelector('#cke_1_contents');
+    if(target){
+        clearInterval(interval);
+        main(); }}
+
+
+
+function main(){
+    let editor_iframe;
+    let iframe_doc;
+    let iframe_body;
+    let selection;
+    let range;
+
+    let ua=0;
+    let agent=window.navigator.userAgent.toLowerCase();
+    if(agent.indexOf('firefox')>-1){ ua=1; }
+
+    let read_json=localStorage.getItem('LinkCard Style');
+    let lcard_set=JSON.parse(read_json);
+    if(!Array.isArray(lcard_set)){
+        lcard_set=
+            [0, 0, "white", 1, "#e2e2e2", 0, "#333", "red", "", ""]; }
+    if(lcard_set.length<10){
+        lcard_set[6]="#333";
+        lcard_set[7]="red";
+        lcard_set[8]="";
+        lcard_set[9]=""; }
+
+    let write_json=JSON.stringify(lcard_set);
+    localStorage.setItem('LinkCard Style', write_json);
+
+
+    let target0=document.querySelector('#cke_1_contents');
+    let monitor0=new MutationObserver( catch_key );
+    monitor0.observe(target0, {childList: true});
+
+    catch_key();
+
+    function catch_key(){
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){
+            iframe_doc=editor_iframe.contentWindow.document;
+            if(iframe_doc){
+
+                when_back();
+
+                iframe_doc.addEventListener('keydown', check_key);
+                document.addEventListener('keydown', check_key);
+
+                function check_key(event){
+                    if(event.ctrlKey && event.keyCode==117){
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        if(mode==0 && editor_iframe){
+                            mode=1;
+                            sign();
+                            card_edit(); }
+                        else if(mode==1 && editor_iframe){
+                            mode=0;
+                            mode_e=0;
+                            mode_c=0;
+                            sign_clear();
+                            card_close(); }}
+
+                    if(event.keyCode==116){
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        alert(
+                            "　⛔　F5 / Ctrl + F5 / Shift + F5　\n"+
+                            "　　　　このショートカットは現在のページを遷移して、編集中の\n"+
+                            "　　　　データを損失する可能性があるので、無効にしています。\n"+
+                            "　　　　　　-----　LinkCard Editor　-----"); }}}}
+
+        before_end();
+
+    } // catch_key()
+
+
+
+    function when_back(){
+        if(mode==1){
+            sign();
+            card_close();
+            mode_e=0;
+            mode_c=0;
+            card_edit(); }}
+
+
+
+    function card_close(){
+        iframe_body=iframe_doc.querySelector('body');
+        if(iframe_body){
+            selection=iframe_doc.getSelection();
+            selection.removeAllRanges();
+
+            let target_card=iframe_body.querySelectorAll('.ogpCard_root');
+            for(let k=0; k<target_card.length; k++){
+                if(target_card[k].classList.contains('edit_card')){
+                    target_card[k].classList.remove('edit_card');
+                    if(target_card[k].classList.contains('edit_card_e')){
+                        target_card[k].classList.remove('edit_card_e');
+                        edit_span_end(target_card[k]); }}}
+
+            sens_help(0); }}
+
+
+
+    function card_edit(){
+        iframe_body=iframe_doc.querySelector('body');
+        if(iframe_body){
+            let target_card=iframe_body.querySelectorAll('.ogpCard_root');
+            for(let k=0; k<target_card.length; k++){
+                target_card[k].addEventListener('click', function(event){
+                    set_card(target_card[k], event); }); } // Card編集開始
+
+            function set_card(card, event){
+                event.preventDefault();
+                event.stopImmediatePropagation();
+
+                if(mode==1 && card.classList.contains('edit_card')){ // 対象カードでの操作
+                    if(mode_e==0 &&
+                       area_match(card, event) && (event.ctrlKey || event.shiftKey)){ // 編集選択
+                        mode_e=1;
+                        sens_help(2);
+                        mode_enhance(card, event); }
+                    if(mode_e==1){
+                        if(!area_match(card, event)){ // 編集終了
+                            mode_e=0;
+                            sens_help(1);
+                            mode_no_enhance(card); }
+                        else{
+                            if(area_match(card, event).style.zIndex!='1'){
+                                if(event.ctrlKey || event.shiftKey){ // 編集移動
+                                    edit_span_end(card);
+                                    selection.removeAllRanges();
+                                    mode_e=1;
+                                    sens_help(2);
+                                    mode_enhance(card, event); }}}}}
+
+                if(mode==1 &&
+                   !card.classList.contains('edit_card') && event.ctrlKey){ // 対象カード移動
+                    mode_e=0;
+                    mode_c=1;
+                    card_close(); // 他のCardを閉じる
+                    card.classList.add('edit_card');
+                    sens_help(1);
+                    url_reset();
+                    edit_in(card); }}
+
+        }} // card_edit()
+
+
+
+    function sens_help(n){
+        let e_hint=document.querySelector('#disp_le .e_hint');
+        if(e_hint){
+            if(n==0){
+                e_hint.innerHTML=''; }
+            if(n==1){
+                e_hint.innerHTML=
+                    '　　テキスト編集：Ctrl+Click'; }
+            if(n==2){
+                e_hint.innerHTML=
+                    '　　テキスト編集終了：Ctrl+Click　　テキストを全選択：Shift+Click'+
+                    '　　　　　　　　　　　　　　'; }}}
+
+
+
+    function area_match(card, event){ // カード上のクリック場所の判定
+        let elem=iframe_doc.elementFromPoint(event.clientX, event.clientY);
+        let select_parent;
+        if(elem.textContent){
+            if(elem.closest('.ogpCard_title')){
+                select_parent=card.querySelector('.ogpCard_title'); }
+            if(elem.closest('.ogpCard_description')){
+                select_parent=card.querySelector('.ogpCard_description'); }
+            if(elem.closest('.ogpCard_urlText')){
+                select_parent=card.querySelector('.ogpCard_urlText'); }}
+        return select_parent; }
+
+
+
+    function mode_enhance(card, event){ // TEXT編集する
+        let target=area_match(card, event);
+
+        if(event.ctrlKey){
+            edit_span(target, 0); } // 対象SPANを編集 💢
+        else if(event.shiftKey){
+            edit_span(target, 1); } // 対象SPANを選択 💢
+
+        if(!card.classList.contains('edit_card_e')){
+            card.classList.add('edit_card_e'); }
+
+        let link=card.querySelector('.ogpCard_link');
+        if(link){
+            link.setAttribute('draggable', 'false'); }} // firefoxで必要
+
+
+
+    function mode_no_enhance(card){
+        if(card.classList.contains('edit_card_e')){
+            card.classList.remove('edit_card_e'); }
+
+        let link=card.querySelector('.ogpCard_link');
+        if(link.hasAttribute('draggable')){
+            link.removeAttribute('draggable'); } // firefoxで必要
+
+        edit_span_end(card); // 編集不能に戻す
+        selection.removeAllRanges(); }
+
+
+
+    function edit_span(elem, n){
+        elem.setAttribute('contenteditable', 'true');
+        elem.style.zIndex='1';
+        elem.style.outline='2px solid #2196f3';
+        elem.style.outlineOffset='3px';
+        if(n==1){
+            selection=iframe_doc.getSelection();
+            range=iframe_doc.createRange();
+            range.selectNodeContents(elem);
+            selection.removeAllRanges();
+            selection.addRange(range); }}
+
+
+
+    function edit_span_end(card){
+        let spans=card.querySelectorAll('span');
+        for(let k=0; k<spans.length; k++){
+            if(spans[k].hasAttribute('contenteditable')){
+                spans[k].removeAttribute('contenteditable');
+                spans[k].style.zIndex='';
+                spans[k].style.outline='';
+                spans[k].style.outlineOffset=''; }}}
+
+
+
+    function edit_in(card){
+        if(mode==1){
+            if(!card.style.textAlign){
+                card.style.textAlign='center'; } // デフォルトで中央配置
+
+            let card_link=card.querySelector('.ogpCard_link');
+            if(!card.querySelector('.ogpCard_imageWrap')){
+                let imgw=document.createElement('span');
+                imgw.setAttribute('class', 'ogpCard_imageWrap');
+                imgw.setAttribute('style', 'position:relative; width:120px; height:120px; '+
+                                  'flex-shrink:0; border: 1px solid #eee;');
+                card_link.appendChild(imgw); } // カバー画像が無い場合に表示エリア確保
+
+            slim_title(card);
+            slim_icon(card);
+
+            item_setter(card);
+            align_in(card);
+            size_in(card);
+            bg_color(card);
+            tx_color(card);
+            set_url(card);
+            query_cut(card);
+            bd_color(card);
+            bd_width(card);
+            svg_icon(card);
+            mem_plus(card);
+            mem_paste(card);
+            moz(card);
+
+        }} // edit_in()
+
+
+
+    function slim_title(card){ // 先頭・末尾の『』を削除
+        if(card.classList.contains('edit_card')){
+            let link=card.querySelector('.ogpCard_link');
+            if(link.getAttribute('href').includes('https://ameblo.jp/')){
+                let title=card.querySelector('.ogpCard_title');
+                if(title){
+                    let title_str=title.innerHTML;
+                    if(title_str.slice(0, 1)=='『' && title_str.slice(-1)=='』'){
+                        title_str=title_str.slice(1).slice(0, -1); }
+                    title.innerHTML=title_str; }}}}
+
+
+
+    function slim_icon(card){ // リンクマークをテキスト化
+        let link_svg=
+            '<svg width="20" height="14" viewBox="0 0 200 240">'+
+            '<path d="M27 182 c-22 -24 -21 -44 2 -73 23 -29 39 -19 23 15 -9 19 '+
+            '-8 27 4 37 23 19 57 -17 50 -53 -7 -35 11 -37 24 -2 11 28 8 37 -23 72 '+
+            '-25 27 -58 28 -80 4zM70 104 c-11 -28 -8 -37 23 -72 25 -27 58 -28 80 '+
+            '-4 22 24 21 44 -2 73 -23 28 -41 17 -22 -13 11 -17 10 -23 -3 -36 -14 '+
+            '-14 -17 -14 -36 3 -16 14 -20 27 -16 47 7 35 -11 37 -24 2z"/></svg>';
+
+        let url=card.querySelector('.ogpCard_url');
+        if(url){
+            url.style.margin='auto 0 0 20px'; }
+        let iconWrap=card.querySelector('.ogpCard_iconWrap');
+        if(iconWrap){
+            if(card.querySelector('.ogpCard_icon')){
+                iconWrap.innerHTML=link_svg;
+                iconWrap.style.fill='currentColor';
+                iconWrap.style.height='19px';
+                iconWrap.style.position='';
+                iconWrap.style.width='';
+                iconWrap.style.flexShrink=''; }}
+        let urlText=card.querySelector('.ogpCard_urlText');
+        if(urlText){
+            urlText.style.fontSize='13px'; }}
+
+
+
+    function item_setter(card){
+        let target_i=document.querySelector('#js-photos-imageList');
+        let monitor_i=new MutationObserver(item_select);
+        monitor_i.observe(target_i, {childList: true, subtree: true}); // 画像パレット監視
+
+        item_select();
+
+        function item_select(){
+            let item=document.querySelectorAll('.p-images-imageList__item');
+            for(let k=0; k<item.length; k++){
+                item[k].addEventListener('click', function(event){
+                    set_img(event, item[k]); }); }}
+
+        function set_img(e, item){
+            if(mode==1){
+                e.stopImmediatePropagation();
+                let img_src=item.getAttribute('data-image');
+                let inner=
+                    '<img alt="" class="ogpCard_image" data-ogp-card-image="" '+
+                    'height="120" loading="lazy" data-cke-saved-src="' + img_src +
+                    '" src="' + img_src +
+                    '" style="position:absolute;top:50%;left:50%;object-fit:cover;'+
+                    'min-height:100%;min-width:100%;'+
+                    'transform:translate(-50%,-50%)" width="120">';
+
+                editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+                if(editor_iframe){
+                    let target_card=iframe_body.querySelectorAll('.ogpCard_root');
+                    for(let k=0; k<target_card.length; k++){
+                        if(target_card[k].classList.contains('edit_card')){
+                            range_con(target_card[k]);
+                            let card_imgw=
+                                target_card[k].querySelector('.ogpCard_imageWrap');
+                            if(card_imgw){
+                                card_imgw.innerHTML=inner; }}}
+
+                    function range_con(card){
+                        if(mode==1){
+                            selection=iframe_doc.getSelection();
+                            range=iframe_doc.createRange();
+                            range.setStart(card, 0);
+                            range.setEnd(card, 0);
+                            selection.removeAllRanges();
+                            selection.addRange(range); }}
+
+                }}} // set_img()
+
+
+        item_sign(card);
+
+        function item_sign(card){
+            let photos_w=document.querySelector('#js-photos-wrapper');
+            photos_w.addEventListener('mouseover', function(){
+                let imageWrap=card.querySelector('.ogpCard_imageWrap');
+                if(imageWrap && card.classList.contains('edit_card')){
+                    imageWrap.style.filter='invert(1)';
+                    imageWrap.style.background='#442814'; }});
+
+            photos_w.addEventListener('mouseout', function(){
+                let imageWrap=card.querySelector('.ogpCard_imageWrap');
+                if(imageWrap && card.classList.contains('edit_card')){
+                    imageWrap.style.filter='';
+                    imageWrap.style.background=''; }}); }
+
+    } // item_setter()
+
+
+
+    function align_in(card){
+        let al=document.querySelector('#disp_le .al');
+        let ac=document.querySelector('#disp_le .ac');
+        let ar=document.querySelector('#disp_le .ar');
+        al.onclick=function(){
+            if(card.style.textAlign!='left'){
+                if(card.classList.contains('edit_card')){
+                    card.style.textAlign='left'; }}}
+        ac.onclick=function(){
+            if(card.classList.contains('edit_card')){
+                if(card.style.textAlign!='center'){
+                    card.style.textAlign='center'; }}}
+        ar.onclick=function(){
+            if(card.classList.contains('edit_card')){
+                if(card.style.textAlign!='right'){
+                    card.style.textAlign='right'; }}}
+
+    } // arrange_in()
+
+
+
+    function size_in(card){
+        let lz=document.querySelector('#disp_le .lz');
+        lz.onclick=function(event){
+            let link=card.querySelector('.ogpCard_link');
+            if(card.classList.contains('edit_card')){
+                if(event.ctrlKey){
+                    ex_compact(card); }
+                else{
+                    if(mode_e==1){
+                        mode_e=0;
+                        mode_no_enhance(card); }
+                    else{
+                        if(link){
+                            if(link.style.height=='108px'){
+                                arrange_min(card); }
+                            else if(link.style.height=='auto'){
+                                arrange_default(card); }
+                            else{ // 未アレンジは compactに変更
+                                arrange_compact(card); }}}}}}
+
+    } // size_in()
+
+
+
+    function ex_compact(card){
+        let ok=confirm(
+            "　　　💢 リンクカードの小型最軽量化オプション\n\n"+
+            "　　「OK」 を押すと 「カバー画像」「記事の本文部」 を削除します。\n"+
+            "　　 軽量化を元に戻すには、カードを最初から作り直してください。");
+
+        if(ok){
+            if(card.classList.contains('edit_card')){
+                arrange_ex_compact(card); }
+            mode_e=0; // テキスト編集モードのリセット
+            mode_no_enhance(card); }
+        else{ ; }} // ex_compact()
+
+
+
+    function arrange_ex_compact(card){
+        let link=card.querySelector('.ogpCard_link');
+        if(link){
+            link.style.width='500px';
+            link.style.height='';
+            link.style.margin='';
+            link.style.boxSizing=''; }
+        let content=card.querySelector('.ogpCard_content');
+        if(content){
+            content.style.padding='7px 15px 4px 15px';
+            content.style.flexDirection='';
+            content.style.overflow='';
+            content.style.justifyContent='inherit'; }
+        let title=card.querySelector('.ogpCard_title');
+        if(title){
+            title.style.WebkitBoxOrient='';
+            title.style.display='';
+            title.style.WebkitLineClamp='';
+            title.style.maxHeight='19px';
+            title.style.flexShrink='';
+            title.style.font='bold 16px/1.25 Meiryo'; }
+        let description=card.querySelector('.ogpCard_description');
+        if(description){
+            description.remove(); }
+        let url=card.querySelector('.ogpCard_url');
+        if(url){
+            url.style.margin=''; }
+        let urlText=card.querySelector('.ogpCard_urlText');
+        if(urlText){
+            urlText.style.overflow='';
+            urlText.style.textOverflow='';
+            urlText.style.textAlign=''; }
+        let imageWrap=card.querySelector('.ogpCard_imageWrap');
+        if(imageWrap){
+            imageWrap.remove(); }
+
+
+        let ogpCard_wrap=card.querySelector('.ogpCard_wrap');
+        if(ogpCard_wrap){
+            ogpCard_wrap.removeAttribute('contenteditable'); }
+
+        if(link){
+            link.removeAttribute('data-ogp-card-log');
+            link.removeAttribute('data-cke-saved-href'); }
+
+        let all_obj=card.querySelectorAll('*');
+        for(let k=0; k<all_obj.length; k++){
+            all_obj[k].classList.remove(
+                'ogpCard_wrap', 'ogpCard_content', 'ogpCard_title',
+                'ogpCard_url', 'ogpCard_iconWrap', 'ogpCard_urlText'); }
+        card.classList.remove('ogpCard_root', 'edit_card');
+
+        let dupe=card.cloneNode(true);
+        card.parentNode.replaceChild(dupe, card); }
+
+
+
+    function arrange_compact(card){
+        let link=card.querySelector('.ogpCard_link');
+        if(link){
+            link.style.width='500px';
+            link.style.height='108px';
+            link.style.margin='0 auto';
+            link.style.boxSizing=''; }
+        let content=card.querySelector('.ogpCard_content');
+        if(content){
+            content.style.padding='8px 25px 4px 15px';
+            content.style.flexDirection='column';
+            content.style.justifyContent='inherit'; }
+        let title=card.querySelector('.ogpCard_title');
+        if(title){
+            title.style.maxHeight='39px';
+            title.style.flexShrink='0';
+            title.style.font='bold 16px/1.25 Meiryo';
+            title.style.WebkitLineClamp='2'; }
+        let description=card.querySelector('.ogpCard_description');
+        if(description){
+            description.style.whiteSpace='';
+            description.style.margin='0';
+            description.style.font='13px/1.4 Meiryo';
+            description.style.display=''; }
+        let url=card.querySelector('.ogpCard_url');
+        if(url){
+            url.style.margin='auto 0 0 20px'; }
+        let imageWrap=card.querySelector('.ogpCard_imageWrap');
+        if(imageWrap){
+            imageWrap.style.width='98px';
+            imageWrap.style.height='98px';
+            imageWrap.style.margin='auto 0';
+            imageWrap.style.top='';
+            imageWrap.style.right='15px';
+            imageWrap.style.border='1px solid #eee';
+            imageWrap.style.display=''; }}
+
+
+
+    function arrange_min(card){
+        let link=card.querySelector('.ogpCard_link');
+        if(link){
+            link.style.width='500px';
+            link.style.height='auto';
+            link.style.margin='0 auto';
+            link.style.boxSizing=''; }
+        let content=card.querySelector('.ogpCard_content');
+        if(content){
+            content.style.padding='7px 15px 4px 15px';
+            content.style.flexDirection='row';
+            content.style.justifyContent='inherit'; }
+        let title=card.querySelector('.ogpCard_title');
+        if(title){
+            title.style.maxHeight='19px';
+            title.style.flexShrink='1';
+            title.style.font='bold 16px/1.25 Meiryo';
+            title.style.WebkitLineClamp='1'; }
+        let description=card.querySelector('.ogpCard_description');
+        if(description){
+            description.style.whiteSpace='';
+            description.style.margin='0';
+            description.style.font='13px/1.4 Meiryo';
+            description.style.display='none'; }
+        let url=card.querySelector('.ogpCard_url');
+        if(url){
+            url.style.margin='0'; }
+        let imageWrap=card.querySelector('.ogpCard_imageWrap');
+        if(imageWrap){
+            imageWrap.style.width='';
+            imageWrap.style.height='';
+            imageWrap.style.margin='';
+            imageWrap.style.top='';
+            imageWrap.style.right='';
+            imageWrap.style.border='';
+            imageWrap.style.display='none'; }}
+
+
+
+    function arrange_default(card){
+        let link=card.querySelector('.ogpCard_link');
+        if(link){
+            link.style.width='620px';
+            link.style.height='120px';
+            link.style.margin='';
+            link.style.boxSizing='border-box'; }
+        let content=card.querySelector('.ogpCard_content');
+        if(content){
+            content.style.padding='16px 16px 12px';
+            content.style.flexDirection='column';
+            content.style.justifyContent='inherit';
+            content.style.backgroundColor=''; }
+        let title=card.querySelector('.ogpCard_title');
+        if(title){
+            title.style.maxHeight='44px';
+            title.style.flexShrink='0';
+            title.style.font='bold 16px/1.4 Meiryo';
+            title.style.WebkitLineClamp='2'; }
+        let description=card.querySelector('.ogpCard_description');
+        if(description){
+            description.style.whiteSpace='nowrap';
+            description.style.marginTop='4px';
+            description.style.font='12px/1.6 Meiryo';
+            description.style.display=''; }
+        let url=card.querySelector('.ogpCard_url');
+        if(url){
+            url.style.margin='auto 0 0 20px'; }
+        let imageWrap=card.querySelector('.ogpCard_imageWrap');
+        if(imageWrap){
+            imageWrap.style.width='120px';
+            imageWrap.style.height='120px';
+            imageWrap.style.margin='';
+            imageWrap.style.top='';
+            imageWrap.style.right='';
+            imageWrap.style.border='1px solid #e2e2e2';
+            imageWrap.style.display=''; }}
+
+
+
+    function bg_color(card){
+        let set_color;
+        let lc_color=document.querySelector('#lc_color');
+        let lc_trance=document.querySelector('#lc_trance');
+        let link=card.querySelector('.ogpCard_link');
+        let link_bgc=link.style.backgroundColor;
+        if(link_bgc){
+            lc_color.style.backgroundColor=link_bgc;
+            lc_trance.value=rgba_trance(link_bgc);
+            set_color=link_bgc; }
+
+        import_color(card, lc_color, link, 'bg');
+
+        let target_elem=lc_color;
+        let monitor_elem=new MutationObserver(import_c);
+        monitor_elem.observe(target_elem, {attributes: true});
+        function import_c(){
+            if(target_elem.style.opacity==2){
+                monitor_elem.disconnect();
+                setTimeout(()=>{
+                    lc_trance.value=1;
+                    set_color=lc_color.style.backgroundColor;
+                    target_elem.style.opacity=1;
+                }, 40);
+                monitor_elem.observe(target_elem, {attributes: true}); }}
+
+
+        lc_trance.addEventListener('input', function(event){
+            event.preventDefault();
+            let set_color_tmp=rgba(set_color, lc_trance.value);
+            let lc_color=document.querySelector('#lc_color');
+            lc_color.style.backgroundColor=set_color_tmp;
+            let link=card.querySelector('.ogpCard_link');
+            if(card.classList.contains('edit_card')){
+                link.style.backgroundColor=set_color_tmp; }});
+
+
+        function rgba(c_val, alpha){ // 透過色の白背景時の非透過色に変換
+            let R, G, B;
+            let c_val_arr=c_val.split(',');
+            R=c_val_arr[0].replace(/[^0-9]/g, '');
+            G=c_val_arr[1].replace(/[^0-9]/g, '');
+            B=c_val_arr[2].replace(/[^0-9]/g, '');
+            return 'rgb('+cpColor(R, alpha)+', '+cpColor(G, alpha)+', '+cpColor(B, alpha)+')'
+
+            function cpColor(deci_code, alp){
+                const colorCode=deci_code*alp + 255*(1 - alp);
+                return Math.floor(colorCode).toString(10); }}
+
+    } // bg_color()
+
+
+
+    function import_color(card, sw, target, type){
+        let color_label;
+        let icon_button;
+
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        iframe_doc=editor_iframe.contentWindow.document;
+        selection=iframe_doc.getSelection();
+
+        if(ua==0){
+            color_label=document.querySelector('#cke_16_label');
+            icon_button=document.querySelector('#cke_17'); }
+        else if(ua==1){
+            color_label=document.querySelector('#cke_15_label');
+            icon_button=document.querySelector('#cke_16'); }
+
+        let target_p=color_label;
+        let monitor_p=new MutationObserver(get_copy);
+
+        sw.onclick=function(event){
+            if(card.classList.contains('edit_card')){
+                selection.removeAllRanges(); // 記事中の選択に誤指定を防止
+                icon_button.click();
+                monitor_p.observe(target_p, {attributes: true}); }}
+
+
+        function get_copy(){
+            if(card.classList.contains('edit_card')){
+                if(type=='bg'){
+                    sw.style.backgroundColor=color_label.style.backgroundColor;
+                    target.style.backgroundColor=sw.style.backgroundColor;
+                    sw.style.opacity=2; }
+                if(type=='cl'){
+                    sw.style.backgroundColor=color_label.style.backgroundColor;
+                    target.style.color=sw.style.backgroundColor;
+                    let iconWrap=card.querySelector('.ogpCard_iconWrap');
+                    if(iconWrap){
+                        iconWrap.style.fill='currentColor'; }
+                    let svg=document.querySelector('#svg');
+                    if(svg){
+                        svg.style.color=sw.style.backgroundColor; }}
+                if(type=='bd'){
+                    sw.style.backgroundColor=color_label.style.backgroundColor;
+                    target.style.borderColor=sw.style.backgroundColor; }
+                if(type=='svg'){
+                    sw.style.color=color_label.style.backgroundColor;
+                    target.style.fill=sw.style.color; }}
+            monitor_p.disconnect(); }
+
+
+        document.addEventListener('mousedown', function(){
+            monitor_p.disconnect(); });
+
+
+        if(document.querySelector('.cke_wysiwyg_frame')!=null){
+            editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+            if(editor_iframe){
+                iframe_doc=editor_iframe.contentWindow.document;
+                if(iframe_doc){
+                    iframe_doc.addEventListener('mousedown', function(){
+                        monitor_p.disconnect(); }); }}}
+
+
+        let target_body=document.querySelector('.l-body');
+        let monitor_generator=new MutationObserver(stealth);
+        monitor_generator.observe(target_body, {childList: true, subtree: true});
+
+        function stealth(){
+            let color_generator=document.querySelector('.ck-l-colorGenerator');
+            if(color_generator){
+                color_generator.addEventListener('mousedown', function(event){
+                    event.stopImmediatePropagation(); }); }}
+
+    } // inport_color()
+
+
+
+    function rgba_trance(color_val){
+        let trance_val;
+        let c_val_arr=color_val.split(',');
+        if(c_val_arr.length==3){
+            trance_val=1; }
+        else{
+            trance_val=c_val_arr[3].replace(/[^0-9]/g, '')/10; }
+        return trance_val; }
+
+
+
+    function bg_reset(){
+        let lc_color=document.querySelector('#lc_color');
+        let lc_trance=document.querySelector('#lc_trance');
+        lc_color.style.background='#fff';
+        lc_trance.value=1; }
+
+
+
+    function tx_color(card){ // Cardの基本文字色指定
+        let link=card.querySelector('.ogpCard_link');
+        if(link.style.color==''){ // 配色がある場合は訂正しない
+            link.style.color='rgb(51, 51, 51)'; } // Cardの基本文字色を指定
+        let title=card.querySelector('.ogpCard_title');
+        if(title){
+            title.style.color=''; }
+        let description=card.querySelector('.ogpCard_description');
+        if(description){
+            description.style.color=''; }
+        let urlText=card.querySelector('.ogpCard_urlText');
+        if(urlText){
+            urlText.style.color=''; }
+
+        let tc_color=document.querySelector('#tc_color');
+        tc_color.style.background=link.style.color;
+
+        import_color(card, tc_color, link, 'cl');
+
+    } // tx_color()
+
+
+
+    function tx_reset(){
+        let tc_color=document.querySelector('#tc_color');
+        tc_color.style.background='#fff'; }
+
+
+
+    function set_url(card){
+        let url_wide=document.querySelector('#url_wide');
+        let url_input=document.querySelector('#url_input');
+        let url_clear=document.querySelector('#ex_disp .url_clear');
+        let lw_h=document.querySelector('#lw_h');
+        let write_url=document.querySelector('#write_url');
+
+
+        url_input.onclick=function(){
+            if(mode_c==1){
+                if(!url_input.classList.contains('url_input_w')){
+                    url_input.classList.add('url_input_w');
+                    lw_h.classList.remove('lw_hint');
+                    lw_h.classList.add('lw_hint_w');
+                    url_wide.style.display='block'; }}}
+
+
+        url_wide.onclick=function(event){
+            event.stopImmediatePropagation();
+            if(mode_c==1){
+                if(url_input.classList.contains('url_input_w')){
+                    url_input.classList.remove('url_input_w');
+                    lw_h.classList.remove('lw_hint_w');
+                    lw_h.classList.add('lw_hint');
+                    url_wide.style.display='none'; }}}
+
+
+        let link=card.querySelector('.ogpCard_link');
+        let def_url=link.getAttribute('href');
+        url_input.value=def_url;
+        url_clear.onclick=function(event){
+            event.stopImmediatePropagation();
+            url_input.value=''; }
+
+
+        write_url.onclick=function(event){
+            let urlText=card.querySelector('.ogpCard_urlText');
+            if(event.shiftKey){
+                if(card.classList.contains('edit_card')){
+                    if(urlText){
+                        if(urlText.textContent==get_domain(card)){
+                            urlText.textContent=def_url; // cardのURLを記入
+                            urlText.style.height='19px'; }
+                        else{
+                            urlText.textContent=get_domain(card); }}}} // ドメイン表示
+            else{
+                rewrite(); }}
+
+
+        url_input.onkeydown=function(event){
+            if(event.keyCode==13){
+                event.stopImmediatePropagation();
+                event.preventDefault();
+                rewrite(); }}
+
+
+        function rewrite(){
+            def_url=link.getAttribute('href');
+            if(url_input.value!='' && url_input.value!=def_url){ // 変更ある場合のみ実行
+                let ok=confirm(
+                    "　　　💢 リンクカードのURL書換えオプション\n\n"+
+                    "　　現在の「URL入力枠」の内容をリンクURLに設定します。\n"+
+                    "　　書換え後、カードを右クリックして別ウインドウにリンク先\n"+
+                    "　　を開き、正しく設定されたかを確認してください。");
+
+                if(ok){
+                    if(card.classList.contains('edit_card')){
+                        link.setAttribute('href', url_input.value);
+                        let data_cke_saved_href=
+                            link.getAttribute('data-cke-saved-href');
+                        if(data_cke_saved_href){
+                            link.setAttribute('data-cke-saved-href', url_input.value); }
+
+                        url_input.style.background='#80deea';
+                        setTimeout(()=>{
+                            url_input.style.background='';
+                        }, 1500); }}
+                else{
+                    url_input.style.background='#80deea';
+                    url_input.value='現在のリンクURLに戻します';
+                    setTimeout(()=>{
+                        url_input.style.background='';
+                        url_input.value=def_url; // URL入力枠内容を元に戻す
+                    }, 3000); }}
+            else{
+                url_input.value=def_url;
+                if(url_input.classList.contains('url_input_w')){
+                    url_input.classList.remove('url_input_w');
+                    lw_h.classList.remove('lw_hint_w');
+                    lw_h.classList.add('lw_hint');
+                    url_wide.style.display='none'; }}}
+
+
+        function get_domain(card){
+            let domein=def_url.match(/^https?:\/{2,}(.*?)(?:\/|\?|#|$)/)[1];
+            return domein; }
+
+    } // set_url()
+
+
+
+    function query_cut(card){
+        let link=card.querySelector('.ogpCard_link');
+        let url_input=document.querySelector('#url_input');
+
+        let am_url=document.querySelector('#am_url');
+        if(am_url){
+            am_url.onclick=function(){
+                let def_url=link.getAttribute('href');
+                let smart_url;
+                let product;
+
+                if(def_url.indexOf('www.amazon.co')==-1){ // Amazon以外
+                    smart_url=cut_after(def_url, '?'); }
+                else{ // Amazonの場合
+                    if(def_url.indexOf('/b/')==-1 && def_url.indexOf('/b?')==-1 &&
+                       def_url.indexOf('/s/')==-1 && def_url.indexOf('/s?')==-1 &&
+                       cut_before(def_url, '?').indexOf('node=')==-1){
+                        if(def_url.indexOf('/gp/')!=-1){
+                            product=cut_after(cut_before(cut_after(def_url, '?'), '/gp/'), '/ref=');
+                            smart_url='https://www.amazon.co.jp'+ product; }
+                        else if(def_url.indexOf('/dp/')!=-1){
+                            product=cut_after(cut_before(cut_after(def_url, '?'), '/dp/'), '/ref=');
+                            smart_url='https://www.amazon.co.jp'+ product; }
+                        else{
+                            smart_url=cut_after(def_url, '?'); }}
+                    else{
+                        smart_url=def_url; }}
+
+
+                if(card.classList.contains('edit_card')){
+                    link.setAttribute('href', smart_url);
+                    let data_cke_saved_href=
+                        link.getAttribute('data-cke-saved-href');
+                    if(data_cke_saved_href){
+                        link.setAttribute('data-cke-saved-href', smart_url); }
+
+                    url_input.value=smart_url;
+                    url_input.style.background='#80deea';
+                    setTimeout(()=>{
+                        url_input.style.background='';
+                    }, 1500); }}}
+
+
+        function cut_before(row, string){ // 前方を削除
+            let rs;
+            if(row.indexOf(string)!=-1){
+                rs=row.substring(row.indexOf(string));
+                return rs; }
+            else{
+                return row; }}
+
+        function cut_after(row, string){ // 以降を削除
+            let rs;
+            if(row.indexOf(string)!=-1){
+                rs=row.substring(0, row.indexOf(string));
+                return rs; }
+            else{
+                return row; }}
+
+    } // query_cut()
+
+
+
+    function bd_color(card){
+        let lb_color=document.querySelector('#lb_color');
+        let link=card.querySelector('.ogpCard_link');
+        let link_bc=link.style.borderColor;
+        if(link_bc){
+            lb_color.style.background=link_bc; }
+
+        import_color(card, lb_color, link, 'bd');
+
+    } // bd_color()
+
+
+
+    function bd_width(card){
+        let link=card.querySelector('.ogpCard_link');
+        let lborder=document.querySelector('#lborder');
+        let link_bw=parseInt(link.style.borderWidth);
+        let lb_disp=document.querySelector('#lb_disp');
+        if(link_bw || link_bw==0){
+            lborder.value=link_bw; }
+        if(mode_c==1){
+            lb_disp.textContent=lborder.value+'px'; }
+
+        lborder.onchange=function(){
+            if(card.classList.contains('edit_card')){
+                link.style.borderWidth=lborder.value+'px';
+                lb_disp.textContent=lborder.value+'px'; }}}
+
+
+
+    function bd_reset(){
+        let lb_color=document.querySelector('#lb_color');
+        lb_color.style.background='#fff';
+        let lb_disp=document.querySelector('#lb_disp');
+        lb_disp.textContent='　'; }
+
+
+
+    function svg_icon(card){
+        let svg=document.querySelector('#svg');
+        let iconWrap=card.querySelector('.ogpCard_iconWrap');
+        let svg_c=iconWrap.style.fill;
+        if(!svg_c || svg_c=='currentcolor'){
+            svg.style.color=window.getComputedStyle(iconWrap).color; }
+        else{ svg.style.color=svg_c; }
+
+        import_color(card, svg, iconWrap, 'svg');
+
+    } // link_icon()
+
+
+
+    function sv_reset(){
+        let svg=document.querySelector('#svg');
+        if(svg){
+            svg.style.color='#fff'; }}
+
+
+
+    function mem_plus(card){
+        let memo_plus=document.querySelector('#memo_plus');
+        if(memo_plus){
+            memo_plus.onclick=function(){
+                let ok=confirm(
+                    "　　 🟠 現在のリンクカードのデザインを登録します\n"+
+                    "　　　　これまでの登録を上書きして良いですか？\n");
+
+                if(ok){
+                    if(card.classList.contains('edit_card')){
+                        let link=card.querySelector('.ogpCard_link');
+                        if(link){
+                            if(link.style.height=='108px'){
+                                lcard_set[0]=1; } // compact
+                            else if(link.style.height=='auto'){
+                                lcard_set[0]=2; } // min
+                            else{
+                                lcard_set[0]=0; } // 未アレンジ
+
+                            if(card.style.textAlign=='left'){
+                                lcard_set[1]=1; }
+                            else if(card.style.textAlign=='center'){
+                                lcard_set[1]=2; }
+                            else if(card.style.textAlign=='right'){
+                                lcard_set[1]=3; }
+                            else{
+                                lcard_set[1]=0; }
+
+                            let link_bgc=link.style.backgroundColor;
+                            if(link_bgc){
+                                lcard_set[2]=link_bgc; }
+                            let link_bw=parseInt(link.style.borderWidth);
+                            if(link_bw || link_bw==0){
+                                lcard_set[3]=link_bw; }
+                            let link_bc=link.style.borderColor;
+                            if(link_bc){
+                                lcard_set[4]=link_bc; }
+                            let imageWrap=card.querySelector('.ogpCard_imageWrap');
+                            if(!imageWrap){
+                                lcard_set[5]=1; }
+                            else{
+                                lcard_set[5]=0; }
+                            let link_tc=link.style.color;
+                            if(link_tc){
+                                lcard_set[6]=link_tc; }
+                            let svg_col=document.querySelector('#svg').style.color;
+                            if(svg_col){
+                                lcard_set[7]=svg_col; }
+                            let urlText=card.querySelector('.ogpCard_urlText');
+                            if(urlText){
+                                lcard_set[8]=urlText.style.fontWeight;
+                                lcard_set[9]=urlText.style.color; }
+
+
+                            let write_json=JSON.stringify(lcard_set);
+                            localStorage.setItem('LinkCard Style', write_json); // ストレージ保存
+                        }}}}
+
+        }} // mem_plus()
+
+
+
+    function mem_paste(card){
+        let memo_paste=document.querySelector('#memo_paste');
+        if(memo_paste){
+            memo_paste.onclick=function(event){
+                if(event.shiftKey){ //「ドメイン表示部」に「強調デザイン」適用
+                    if(card.classList.contains('edit_card')){
+                        let iconWrap=card.querySelector('.ogpCard_iconWrap');
+                        let urlText=card.querySelector('.ogpCard_urlText');
+                        let svg=document.querySelector('#svg');
+                        if(iconWrap && urlText && svg){
+                            if(urlText.style.fontWeight==''){
+                                iconWrap.style.fill='red';
+                                urlText.style.color='#222';
+                                urlText.style.fontWeight='bold';
+                                svg.style.color='red'; }
+                            else{
+                                iconWrap.style.fill='currentColor';
+                                urlText.style.color='';
+                                urlText.style.fontWeight='';
+                                svg.style.color=window.getComputedStyle(iconWrap).color; }}}}
+
+                else{ // カード全体に「登録デザイン」適用
+                    if(card.classList.contains('edit_card')){
+                        if(lcard_set[0]==1){
+                            arrange_compact(card); }
+                        else if(lcard_set[0]==2){
+                            arrange_min(card); }
+                        else{
+                            arrange_default(card); }
+
+                        let al=document.querySelector('#disp_le .al');
+                        let ac=document.querySelector('#disp_le .ac');
+                        let ar=document.querySelector('#disp_le .ar');
+                        if(lcard_set[1]==1){
+                            al.click(); }
+                        else if(lcard_set[1]==2){
+                            ac.click(); }
+                        else if(lcard_set[1]==3){
+                            ar.click(); }
+                        else{
+                            al.click(); }
+
+                        let link=card.querySelector('.ogpCard_link');
+                        if(link){
+                            link.style.backgroundColor=lcard_set[2];
+                            let lc_color=document.querySelector('#lc_color');
+                            lc_color.style.background=lcard_set[2];
+                            let lc_trance=document.querySelector('#lc_trance');
+                            lc_trance.value=rgba_trance(lcard_set[2]);
+
+                            link.style.borderWidth=lcard_set[3]+'px';
+                            let lborder=document.querySelector('#lborder');
+                            lborder.value=lcard_set[3];
+                            let lb_disp=document.querySelector('#lb_disp');
+                            lb_disp.textContent=lborder.value+'px';
+
+                            link.style.borderColor=lcard_set[4];
+                            let lb_color=document.querySelector('#lb_color');
+                            lb_color.style.background=lcard_set[4];
+
+                            link.style.color=lcard_set[6];
+                            let tc_color=document.querySelector('#tc_color');
+                            tc_color.style.background=lcard_set[6]; }
+
+                        let iconWrap=card.querySelector('.ogpCard_iconWrap');
+                        if(iconWrap){
+                            iconWrap.style.fill=lcard_set[7]; }
+                        let svg=document.querySelector('#svg');
+                        if(svg){
+                            svg.style.color=lcard_set[7]; }
+
+                        let urlText=card.querySelector('.ogpCard_urlText');
+                        if(urlText){
+                            urlText.style.fontWeight=lcard_set[8];
+                            urlText.style.color=lcard_set[9]; }
+
+                        if(lcard_set[5]==1){
+                            arrange_ex_compact(card); }
+
+                        mode_e=0; // テキスト編集モードの場合はリセット
+                        sens_help(1);
+                        mode_no_enhance(card);
+                        bg_color(card); }}
+
+            }}} // mem_paste()
+
+
+
+    function moz(card){
+        let wrap=card.querySelector('.ogpCard_wrap');
+        let monitor_br=new MutationObserver(no_br);
+        monitor_br.observe(wrap, {childList: true, subtree: true});
+
+        no_br();
+
+        function no_br(){
+            let br_moz=wrap.querySelector('br[type="_moz"]');
+            if(br_moz){
+                br_moz.remove(); }
+            let br_crm=wrap.querySelector('.ogpCard_content > br');
+            if(br_crm){
+                br_crm.remove(); }}}
+
+
+
+    function sign(){
+        monitor0.disconnect();
+
+        let disp=document.createElement("div");
+        disp.setAttribute("id", "disp_le");
+        disp.innerHTML=
+            '<span class="e_hint"></span>'+
+            '<span class="ls_hint hint"><b>▼</b> Card指定：Ctrl+Click</span>'+
+            '<span class="lz_hint hint">型変換：'+
+            '<i class="lz lc_enter fas fa-retweet"></i></span>　配置：'+
+            '<i class="al fas fa-caret-square-left"></i>'+
+            '<i class="ac fas fa-square"></i>'+
+            '<i class="ar fas fa-caret-square-right"></i></span>　'+
+            '<span class="lc_hint hint">背景色：'+
+            '<span id="lc_w"><span id="lc_color">　</span></span></span> '+
+            '<input id="lc_trance" type="number" max="10" min="0.1" step="0.1">'+
+            '：濃度　<span class="tc_hint hint">文字色：'+
+            '<span id="tc_w"><span id="tc_color">　</span></span></span> '+
+            '<div id="ex_disp">　　'+
+            '<i id="url_wide" class="lc_enter fas fa-sign-in-alt fa-rotate-180"></i> '+
+            '<input id="url_input" type="url" placeholder="変更するURLを入力" '+
+            'autocomplete="off">'+
+            '<span class="url_clear"><i class="fas fa-times"></i></span>'+
+            '<span id="lw_h" class="lw_hint hint">'+
+            '<i id="write_url" class="lc_enter fas fa-share fa-rotate-90"></i></span>'+
+            '<span id="la_h" class="la_hint hint">'+
+            '<i id="am_url" class="lc_enter fab fa-amazon"></i></span>'+
+            '　 枠線色：<span class="lb_hint hint">'+
+            '<span id="lb_w"><span id="lb_color">　</span></span></span> '+
+            '<span id="lb_disp">　</span>'+
+            '<input id="lborder" type="number" max="5" min="0">'+
+            '<span id="lv_h" class="lv_hint hint">'+
+            '<i id="svg" class="lc_enter fas fa-link"></i></span>　M：'+
+            '<i id="memo_plus" class="lc_enter hint fas fa-plus"></i> '+
+            '<span class="mp_hint hint">'+
+            '<i id="memo_paste" class="lc_enter fas fa-share fa-rotate-90"></i></span>'+
+            '</div>';
+
+        let css=
+            '@import url("https://use.fontawesome.com/releases/v5.6.0/css/all.css"); '+
+            '#cke_1_contents { display: flex; flex-direction: column; } '+
+            '#disp_le { margin: 0 0 5px; padding: 4px 0 1px; white-space: nowrap; '+
+            'font: normal 16px/24px Meiryo; color: #fff; background: #607d8b; '+
+            'user-select: none; } '+
+
+            '#disp_le .e_hint { position: absolute; background: #607d8b; z-index: 1; } '+
+            '#disp_le .hint { position: relative; } '+
+            '#disp_le .hint:hover::after { position: absolute; z-index: 1; height: 23px; '+
+            'padding: 1px 9px 0; font: 16px Meiryo; color: #fff; background: #000; } '+
+            '#disp_le .ls_hint { margin: 0 45px 0 15px; } '+
+            '#disp_le .ls_hint b { color: #a4fff7; } '+
+            '#disp_le .lz_hint:hover::after { top: 27px; left: -213px; '+
+            'content: "　　　　　標準▸中型▸小型：Click　▲　　'+
+            '軽量化Cardに変更：Ctrl+Click　　　"; } '+
+            '#disp_le .lc_hint:hover::after { top: 27px; left: -161px; '+
+            'content: "　カラーパレット表示：Click ▲ 　"; } '+
+            '#disp_le .tc_hint:hover::after { top: 27px; left: -161px; '+
+            'content: "　カラーパレット表示：Click ▲　"; } '+
+            '#disp_le .lw_hint:hover::after { top: -29px; left: -210px; '+
+            'content: "　リンクURLの書換：Click ▼　 '+
+            'ドメイン表示部に記入：Shift+Click　"; } '+
+            '#disp_le .lw_hint_w:hover::after { top: -29px; left: -503px; '+
+            'content: "　ドメイン表示部に記入：Shift+Click　　'+
+            'リンクURLの書換：Click ▼　"; } '+
+            '#disp_le .la_hint:hover::after { top: -29px; left: -276px; '+
+            'content: "　リンクURLの不要部を省略 : Click ▼　"; } '+
+            '#disp_le .lb_hint:hover::after { top: -29px; left: -227px; '+
+            'content: "　カラーパレット表示：Click ▼　"; } '+
+            '#disp_le .lv_hint:hover::after { top: -29px; left: -227px; '+
+            'content: "　カラーパレット表示：Click ▼　"; } '+
+            '#memo_plus:hover::after { top: -31px; left: -178px; '+
+            'content: "　デザイン登録：Click ▼ 　"; } '+
+            '#disp_le .mp_hint:hover::after { top: -29px; left: -472px; '+
+            'content: "ドメイン表示強調：Shift+Click　　登録デザインを適用：Click ▼"; } '+
+
+            '#disp_le .al, #disp_le .ac, #disp_le .ar { cursor: pointer; font-size: 20px; '+
+            'margin-right: 4px; vertical-align: -1px; } '+
+            '#disp_le .al, #disp_le .ac { margin-right: 4px; } '+
+            '#lc_w, #tc_w { display: inline-block; overflow: hidden; width: 16px; '+
+            'height: 16px; border: 1px solid #fff; background: #fff; vertical-align: -3px; } '+
+            '#lc_color, #tc_color { cursor: pointer; background: #fff; } '+
+            '#lc_trance { height: 22px; width: 15px; border: none; vertical-align: 1px; '+
+            'background: transparent; } '+
+            '#lc_trance::-webkit-inner-spin-button { opacity: 1; } '+
+            '#url_wide { position: absolute; top: 36px; left: 37px; background: #eceff1; '+
+            'padding: 3px 4px 4px; border-radius: 0; color: #000; display: none; } '+
+            '.lw_hint_w +#la_h { margin-right: 400px; } '+
+            '#url_input { height: 18px; width: 316px; padding: 3px 22px 0 12px; '+
+            'margin: 2px 10px 2px -2px; color: #000; } '+
+            '#url_input.url_input_w { width: 578px; padding: 3px 22px 0 32px; } '+
+            '#disp_le .url_clear { margin: 0 15px 0 -28px; color: #444; cursor: pointer; } '+
+            '#disp_le .url_clear:hover { color: red; } '+
+            '.lc_enter { position: relative; cursor: pointer; font-size: 14px; padding: 2px; '+
+            'color: #607d8b; background: #fff; border-radius: 2px; vertical-align: 1px; } '+
+            '#la_h { margin-left: 5px; } '+
+            '#am_url { font-size: 16px; padding: 2px 2px 0px; vertical-align: -1px; } '+
+            '#lb_w { display: inline-block; width: 16px; height: 16px; overflow: hidden; '+
+            'border: 1px solid #fff; background: #fff; vertical-align: -3px; } '+
+            '#lb_color { cursor: pointer; background: #fff; } '+
+            '#lb_disp { display: inline-block; position: relative; width: 32px; '+
+            'margin-right: -14px; color: #fff; background: #607d8b; } '+
+            '#lborder { height: 22px; width: 30px; border: none; background: none; '+
+            'margin-right: 20px; } '+
+            '#lborder::-webkit-inner-spin-button { opacity: 1; } '+
+            '#svg { padding: 2px; vertical-align: 0; } '+
+            '#memo_plus { padding: 2px 3px; }';
+
+        if(ua==1){
+            css+='#lc_trance { width: 18px; } #lborder { width: 32px; }'; }
+
+
+        let style=document.createElement('style');
+        style.setAttribute("id", "le_style");
+        style.innerHTML=css;
+        disp.appendChild(style);
+
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){
+            if(!target0.querySelector('#disp_le')){
+                target0.insertBefore(disp, editor_iframe); }
+
+            iframe_doc=editor_iframe.contentWindow.document;
+            if(iframe_doc){
+                let iframe_html=iframe_doc.querySelector('html');
+                iframe_body=iframe_doc.querySelector('body');
+                if(iframe_html && iframe_body){
+                    let card_style=iframe_doc.createElement('style');
+                    let css=
+                        '.edit_card { outline: 2px solid #2196f3; outline-offset: 6px; } '+
+                        '.edit_card_e .ogpCard_link { height: auto !important; } '+
+                        '.edit_card_e .ogpCard_title { display: unset !important; '+
+                        'max-height: unset !important; overflow: visible !important; } '+
+                        '.edit_card_e .ogpCard_description { white-space: normal !important; '+
+                        'overflow: visible !important; } '+
+                        '.edit_card_e .ogpCard_urlText { white-space: normal !important; '+
+                        'height: auto !important; width: 100%; } '+
+                        '.ogpCard_wrap *{ background-color: initial; }'; // cke editorのリセット
+
+                    card_style.setAttribute("id", "card_style");
+                    card_style.innerHTML=css;
+                    if(!iframe_html.querySelector('#card_style')){
+                        iframe_html.appendChild(card_style); }}}}
+
+        monitor0.observe(target0, {childList: true});
+
+        let disp_le=document.querySelector('#disp_le');
+        disp_le.style.display='block';
+
+        let photos_w=document.querySelector('#js-photos-wrapper');
+        photos_w.style.background='#607d8b'; // 画像パレットとメニューバー色を統一
+
+        bg_reset();
+        tx_reset();
+        url_reset(); // url入力枠幅をリセット
+        bd_reset();
+        sv_reset();
+
+    } // sign()
+
+
+
+    function sign_clear(){
+        if(target0.querySelector('#disp_le')){
+            target0.querySelector('#disp_le').style.display='none'; }
+        let photos_w=document.querySelector('#js-photos-wrapper');
+        photos_w.style.background='';
+        let url_input=document.querySelector('#url_input');
+        url_input.value=''; }
+
+
+
+    function url_reset(){
+        let url_wide=document.querySelector('#url_wide');
+        let url_input=document.querySelector('#url_input');
+        let lw_h=document.querySelector('#lw_h');
+        if(url_input.classList.contains('url_input_w')){
+            url_input.classList.remove('url_input_w');
+            lw_h.classList.remove('lw_hint_w');
+            lw_h.classList.add('lw_hint');
+            url_wide.style.display='none'; }}
+
+
+
+    function before_end(){
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        let submitButton=document.querySelectorAll('.js-submitButton');
+        submitButton[0].addEventListener("click", all_close, false);
+        submitButton[1].addEventListener("click", all_close, false);
+
+        function all_close(){
+            if(mode==1){
+                if(!editor_iframe){ // HTML表示の場合
+                    alert("⛔　LinkCard Editor が処理を終了していません\n\n"+
+                          "　　 通常表示画面に戻り 編集を終了してください");
+                    event.stopImmediatePropagation();
+                    event.preventDefault(); }
+                else if(editor_iframe){ // 通常表示の場合
+                    mode=0;
+                    card_close(); }}}
+    } // before_end()
+
+} // main()
+
