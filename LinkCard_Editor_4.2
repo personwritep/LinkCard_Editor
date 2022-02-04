@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LinkCard Editor ⭐
 // @namespace    http://tampermonkey.net/
-// @version      4.2
+// @version      4.2b
 // @description  通常表示でリンクカードを編集 「Ctrl+F6」
 // @author       personwritep
 // @match        https://blog.ameba.jp/ucs/entry/srventry*
@@ -694,14 +694,14 @@ function main(){
             let R, G, B;
             let c_val_arr=c_val.split(',');
             if(c_val_arr.length==3){
-            R=c_val_arr[0].replace(/[^0-9]/g, '');
-            G=c_val_arr[1].replace(/[^0-9]/g, '');
-            B=c_val_arr[2].replace(/[^0-9]/g, '');
-            return 'rgb('+cpColor(R, alpha)+', '+cpColor(G, alpha)+', '+cpColor(B, alpha)+')'
+                R=c_val_arr[0].replace(/[^0-9]/g, '');
+                G=c_val_arr[1].replace(/[^0-9]/g, '');
+                B=c_val_arr[2].replace(/[^0-9]/g, '');
+                return 'rgb('+cpColor(R, alpha)+', '+cpColor(G, alpha)+', '+cpColor(B, alpha)+')'
 
-            function cpColor(deci_code, alp){
-                const colorCode=deci_code*alp + 255*(1 - alp);
-                return Math.floor(colorCode).toString(10); }}
+                function cpColor(deci_code, alp){
+                    const colorCode=deci_code*alp + 255*(1 - alp);
+                    return Math.floor(colorCode).toString(10); }}
             else{
                 return c_val; }}
 
@@ -926,8 +926,8 @@ function main(){
 
 
         function get_domain(card){
-            let domein=def_url.match(/^https?:\/{2,}(.*?)(?:\/|\?|#|$)/)[1];
-            return domein; }
+            let domain=def_url.match(/^https?:\/{2,}(.*?)(?:\/|\?|#|$)/)[1];
+            return domain; }
 
     } // set_url()
 
@@ -1165,6 +1165,29 @@ function main(){
                                 urlText.style.color='';
                                 urlText.style.fontWeight='';
                                 svg.style.color=window.getComputedStyle(iconWrap).color; }}}}
+
+
+                else if(event.ctrlKey){ //「リンクアイコン」に「ファビコン」を適用
+                    if(card.classList.contains('edit_card')){
+                        let iconWrap=card.querySelector('.ogpCard_iconWrap');
+                        let link_url=card.querySelector('.ogpCard_link').getAttribute('href');
+                        if(iconWrap.querySelector('svg')){
+                            let domain=(new URL(link_url)).protocol +'//'+ (new URL(link_url)).hostname;
+                            if(domain){
+                                let favicon_img=
+                                    '<img alt="" src="https://www.google.com/s2/favicons?domain='+
+                                    domain +'" style="vertical-align: 0; margin-right: 4px; min-width: 16px;">';
+                                iconWrap.innerHTML=favicon_img; }}
+                        else{
+                            let link_svg=
+                                '<svg height="14" width="20" viewBox="0 0 32 36">'+
+                                '<path d="M16 20C14 15 14 13 18 9C20 7 24 4 26 7C27 10 23 16 23 '+
+                                '19C25 18 27 16 29 14C32 9 30 1 23 1C15 2 4 17 16 20M16 12C18 17 '+
+                                '18 19 14 23C12 25 8 28 6 25C5 22 9 16 9 13C7 14 5 16 3 18C-0 23 2 '+
+                                '31 9 31C17 30 28 15 16 12z"></path></svg>';
+                            if(iconWrap){
+                                iconWrap.innerHTML=link_svg; }}}}
+
 
                 else{ // カード全体に「登録デザイン」適用
                     if(card.classList.contains('edit_card')){
@@ -1409,8 +1432,9 @@ function main(){
             'content: "　カラーパレット表示：Click ▼　"; } '+
             '#disp_le .mpl_hint.hint:hover::after { top: -29px; left: -178px; '+
             'content: "　デザイン登録：Click ▼ 　"; } '+
-            '#disp_le .mp_hint.hint:hover::after { top: -29px; left: -472px; '+
-            'content: "ドメイン表示強調：Shift+Click　　登録デザインを適用：Click ▼"; } '+
+            '#disp_le .mp_hint.hint:hover::after { top: -29px; left: -682px; '+
+            'content: "リンクマーク/ファビコン：Ctrl+Click　　強調：Shift+Click　　'+
+            '登録デザインを適用：Click ▼"; } '+
 
             '#disp_le svg { cursor: pointer; width: 16px; height: 16px; padding: 1px; '+
             'border-radius: 2px; background: #fff; vertical-align: -3px; } '+
