@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LinkCard Editor ⭐
 // @namespace    http://tampermonkey.net/
-// @version      4.2b
+// @version      4.2c
 // @description  通常表示でリンクカードを編集 「Ctrl+F6」
 // @author       personwritep
 // @match        https://blog.ameba.jp/ucs/entry/srventry*
@@ -42,14 +42,10 @@ function main(){
     let lcard_set=JSON.parse(read_json);
     if(!Array.isArray(lcard_set)){
         lcard_set=
-            [0, 0, "white", 1, "#e2e2e2", 0, "#333", "red", "", "", 4, 0]; }
-    if(lcard_set.length<12){
-        lcard_set[6]="#333";
-        lcard_set[7]="red";
-        lcard_set[8]="";
-        lcard_set[9]="";
-        lcard_set[10]=4;
-        lcard_set[11]=0; }
+            [0, 0, "white", 1, "#e2e2e2", 0, "#333", "red", "", "", 4, 0, 0]; }
+    if(lcard_set.length<13){
+        lcard_set[11]=0;
+        lcard_set[12]=0; }
 
     let write_json=JSON.stringify(lcard_set);
     localStorage.setItem('LinkCard Style', write_json);
@@ -1137,6 +1133,12 @@ function main(){
                             if(link_br || link_br==0){
                                 lcard_set[10]=link_br; }
 
+                            let iconWrap_svg=card.querySelector('.ogpCard_iconWrap svg');
+                            if(iconWrap_svg){
+                                lcard_set[12]=0; }
+                            else{
+                                lcard_set[12]=1; }
+
                             let write_json=JSON.stringify(lcard_set);
                             localStorage.setItem('LinkCard Style', write_json); // ストレージ保存
                         }}}}
@@ -1167,26 +1169,13 @@ function main(){
                                 svg.style.color=window.getComputedStyle(iconWrap).color; }}}}
 
 
-                else if(event.ctrlKey){ //「リンクアイコン」に「ファビコン」を適用
+                else if(event.ctrlKey){ //「リンクアイコン」⇄「ファビコン」の変更
                     if(card.classList.contains('edit_card')){
-                        let iconWrap=card.querySelector('.ogpCard_iconWrap');
-                        let link_url=card.querySelector('.ogpCard_link').getAttribute('href');
-                        if(iconWrap.querySelector('svg')){
-                            let domain=(new URL(link_url)).protocol +'//'+ (new URL(link_url)).hostname;
-                            if(domain){
-                                let favicon_img=
-                                    '<img alt="" src="https://www.google.com/s2/favicons?domain='+
-                                    domain +'" style="vertical-align: 0; margin-right: 4px; min-width: 16px;">';
-                                iconWrap.innerHTML=favicon_img; }}
+                        let iconWrap_svg=card.querySelector('.ogpCard_iconWrap svg');
+                        if(iconWrap_svg){
+                            card_icon(card, 1); }
                         else{
-                            let link_svg=
-                                '<svg height="14" width="20" viewBox="0 0 32 36">'+
-                                '<path d="M16 20C14 15 14 13 18 9C20 7 24 4 26 7C27 10 23 16 23 '+
-                                '19C25 18 27 16 29 14C32 9 30 1 23 1C15 2 4 17 16 20M16 12C18 17 '+
-                                '18 19 14 23C12 25 8 28 6 25C5 22 9 16 9 13C7 14 5 16 3 18C-0 23 2 '+
-                                '31 9 31C17 30 28 15 16 12z"></path></svg>';
-                            if(iconWrap){
-                                iconWrap.innerHTML=link_svg; }}}}
+                            card_icon(card, 0); }}}
 
 
                 else{ // カード全体に「登録デザイン」適用
@@ -1254,12 +1243,38 @@ function main(){
                         if(lcard_set[5]==1){
                             arrange_ex_compact(card); }
 
+                        card_icon(card, lcard_set[12]);
+
+
                         mode_e=0; // テキスト編集モードの場合はリセット
                         sens_help(1);
                         mode_no_enhance(card);
                         bg_color(card); }}
 
             }}} // mem_paste()
+
+
+
+    function card_icon(card, n){
+        let iconWrap=card.querySelector('.ogpCard_iconWrap');
+        if(n==0){
+            let link_svg=
+                '<svg height="14" width="20" viewBox="0 0 32 36">'+
+                '<path d="M16 20C14 15 14 13 18 9C20 7 24 4 26 7C27 10 23 16 23 '+
+                '19C25 18 27 16 29 14C32 9 30 1 23 1C15 2 4 17 16 20M16 12C18 17 '+
+                '18 19 14 23C12 25 8 28 6 25C5 22 9 16 9 13C7 14 5 16 3 18C-0 23 2 '+
+                '31 9 31C17 30 28 15 16 12z"></path></svg>';
+            if(iconWrap){
+                iconWrap.innerHTML=link_svg; }}
+        if(n==1){
+            let link_url=card.querySelector('.ogpCard_link').getAttribute('href');
+            let domain=(new URL(link_url)).protocol +'//'+ (new URL(link_url)).hostname;
+            if(domain){
+                let favicon_img=
+                    '<img alt="" src="https://www.google.com/s2/favicons?domain='+
+                    domain +'" style="vertical-align: 0; margin-right: 4px; min-width: 16px;">';
+                iconWrap.innerHTML=favicon_img; }}
+    } // card_icon()
 
 
 
