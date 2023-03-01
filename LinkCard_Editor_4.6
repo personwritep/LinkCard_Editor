@@ -245,12 +245,12 @@ function main(){
             if(e.ctrlKey && e.keyCode=='86'){
                 if(ua==1){
                     e.preventDefault();
-                    event.stopImmediatePropagation();
+                    e.stopImmediatePropagation();
                     alert("カードテキストに貼付け操作はできません"); }
                 else {
                     if(!e.shiftKey){
                         e.preventDefault();
-                        event.stopImmediatePropagation();
+                        e.stopImmediatePropagation();
                         alert("「Ctrl+Shift+V」で貼付けてください"); }}}});
 
         if(n==1){
