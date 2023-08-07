@@ -297,7 +297,7 @@ function main(){
                     '<span class="ogpCard_description" style="overflow: hidden; '+
                     'margin: 1px 0 0; font: 13px/1.4 Meiryo; text-align: left;">　'+
                     '</span>';
-                title.insertAdjacentHTML('afterend', descrip); }
+                title.insertAdjacentHTML('afterend', descrip); } // 本文引用が無い場合に補填
 
             let link=card.querySelector('.ogpCard_link');
             let imageWrap=card.querySelector('.ogpCard_imageWrap');
@@ -306,14 +306,7 @@ function main(){
                     '<span class="ogpCard_imageWrap" '+
                     'style="position:relative; width: 116px; height: 116px; flex-shrink:0; '+
                     'border: 1px solid #eee; overflow: hidden;"></span>';
-                link.insertAdjacentHTML('beforeend', imgw); } // カバー画像が無い場合に表示エリア確保
-            else{
-                if(link.style.height=='108px'){
-                    arrange_compact(card); }
-                else if(link.style.height=='auto'){
-                    arrange_min(card); }
-                else{
-                    arrange_default(card); }}
+                link.insertAdjacentHTML('beforeend', imgw); } // カバー画像が無い場合にエリア確保
 
             slim_title(card);
             slim_icon(card);
@@ -1649,8 +1642,8 @@ function main(){
         if(h_hide){
             h_hide.onclick=function(){
                 let ok=confirm(
-                    "　　⚫ 操作説明のヘルプの表示・非表示を変更します\n"+
-                    "　　　  (H) ボタンを押して何度でも変更ができます");
+                    "　　⚫ 操作説明の表示・非表示を変更します\n"+
+                    "　　　  (H) ボタンを押し何度でも変更できます");
                 if(ok){
                     help_toggle();
                     let write_json=JSON.stringify(lcard_set);
