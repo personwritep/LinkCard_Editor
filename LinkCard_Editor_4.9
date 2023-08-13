@@ -1,4 +1,4 @@
-// ==UserScript==
+​// ==UserScript==
 // @name         LinkCard Editor ⭐
 // @namespace    http://tampermonkey.net/
 // @version      4.9
@@ -130,10 +130,9 @@ function main(){
         iframe_doc.onclick=function(event){
             let elem=iframe_doc.elementFromPoint(event.clientX, event.clientY);
             if(elem){
-                let target_card=iframe_doc.querySelectorAll('.ogpCard_root');
-                for(let k=0; k<target_card.length; k++){
-                    if(target_card[k]==elem.closest('.ogpCard_root')){
-                        set_card(target_card[k], event); }}}} // Card編集開始
+                let select_card=elem.closest('.ogpCard_root');
+                if(select_card){
+                    set_card(select_card, event); }}} // Card編集開始
 
         function set_card(card, event){
             event.preventDefault();
@@ -924,8 +923,8 @@ function main(){
                 let ok=confirm(
                     "　　　💢 リンクカードのURL書換えオプション\n\n"+
                     "　　現在の「URL入力枠」の内容をリンクURLに設定します。\n"+
-                    "　　書換え後、カードを右クリックして別ウインドウにリンク先\n"+
-                    "　　を開き、正しく設定されたかを確認してください。");
+                    "　　➔ カードを右クリックしてリンクを新しいウインドウに開く\n"+
+                    "　　ことで、カードに設定されたリンクURLを確認出来ます。");
 
                 if(ok){
                     if(card.classList.contains('edit_card')){
@@ -938,7 +937,7 @@ function main(){
                         url_input.style.background='#80deea';
                         setTimeout(()=>{
                             url_input.style.background='';
-                        }, 1500); }}
+                        }, 500); }}
                 else{
                     url_input.style.background='#80deea';
                     url_input.value='現在のリンクURLに戻します';
