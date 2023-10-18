@@ -351,9 +351,10 @@ function main(){
             url.style.margin='auto 0 0 20px'; }
         let iconWrap=card.querySelector('.ogpCard_iconWrap');
         if(iconWrap){
-            if(card.querySelector('svg')){
-                if(iconWrap.style.fill && iconWrap.style.fill !='currentcolor'){
-                    iconWrap.style.color=iconWrap.style.fill; }}
+            if(iconWrap.style.fill && iconWrap.style.fill !='currentcolor'){
+                iconWrap.style.color=iconWrap.style.fill; }
+            if(iconWrap.style.fill){
+                iconWrap.style.fill=''; }
             if(card.querySelector('.ogpCard_icon') || card.querySelector('svg')){
                 iconWrap.innerHTML='∽';
                 iconWrap.style.position='';
