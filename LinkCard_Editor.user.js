@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        LinkCard Editor ⭐
 // @namespace        http://tampermonkey.net/
-// @version        5.3
+// @version        5.4
 // @description        通常表示でリンクカードを編集 「Ctrl+F6」
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/entry/srventry*
@@ -1305,11 +1305,11 @@ function main(){
                 iconWrap.style.transform='rotate(135deg)'; }}
         if(n==1){
             let link_url=card.querySelector('.ogpCard_link').getAttribute('href');
-            let domain=(new URL(link_url)).protocol +'//'+ (new URL(link_url)).hostname;
-            if(domain){
+            if(link_url){
                 let favicon_img=
-                    '<img alt="" src="https://www.google.com/s2/favicons?domain='+
-                    domain +'" style="vertical-align: -3px; margin-right: 2px; min-width: 16px;">';
+                    '<img alt="" src="https://t1.gstatic.com/faviconV2?client=SOCIAL'+
+                    '&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url='+ link_url +'&size=16" '+
+                    'style="vertical-align: -3px; margin-right: 2px; min-width: 16px;">';
                 iconWrap.innerHTML=favicon_img;
                 iconWrap.style.position='';
                 iconWrap.style.fill='';
