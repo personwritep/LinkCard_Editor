@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        LinkCard Editor ⭐
 // @namespace        http://tampermonkey.net/
-// @version        5.4
+// @version        5.5
 // @description        通常表示でリンクカードを編集 「Ctrl+F6」
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/entry/srventry*
@@ -322,7 +322,6 @@ function main(){
             bg_color(card);
             tx_color(card);
             set_url(card);
-            query_cut(card);
             bd_color(card);
             bd_width(card);
             bd_radius(card);
@@ -872,6 +871,10 @@ function main(){
         let lw_h=document.querySelector('#lw_h');
         let write_url=document.querySelector('#write_url');
 
+        let urlText=card.querySelector('.ogpCard_urlText');
+        let link=card.querySelector('.ogpCard_link');
+        let def_url=link.getAttribute('href');
+
 
         url_input.onclick=function(){
             if(mode_c==1){
@@ -892,8 +895,6 @@ function main(){
                     url_wide.style.display='none'; }}}
 
 
-        let link=card.querySelector('.ogpCard_link');
-        let def_url=link.getAttribute('href');
         url_input.value=def_url;
         url_clear.onclick=function(event){
             event.stopImmediatePropagation();
@@ -901,16 +902,9 @@ function main(){
 
 
         write_url.onclick=function(event){
-            let urlText=card.querySelector('.ogpCard_urlText');
-            if(event.shiftKey){
-                if(card.classList.contains('edit_card')){
-                    if(urlText){
-                        if(urlText.textContent==get_domain(card)){
-                            urlText.textContent=def_url; } // cardのURLを記入
-                        else{
-                            urlText.textContent=get_domain(card); }}}} // ドメイン表示
-            else{
-                rewrite(); }}
+            event.stopImmediatePropagation();
+            event.preventDefault();
+            rewrite(); }
 
 
         url_input.onkeydown=function(event){
@@ -940,14 +934,16 @@ function main(){
                         url_input.style.background='#80deea';
                         setTimeout(()=>{
                             url_input.style.background='';
-                        }, 500); }}
+                        }, 500); }
+                    set_icon(card);
+                    urlText.textContent=get_domain(card); }
                 else{
                     url_input.style.background='#80deea';
                     url_input.value='現在のリンクURLに戻します';
                     setTimeout(()=>{
                         url_input.style.background='';
                         url_input.value=def_url; // URL入力枠内容を元に戻す
-                    }, 3000); }}
+                    }, 2000); }}
             else{
                 url_input.value=def_url;
                 if(url_input.classList.contains('url_input_w')){
@@ -957,74 +953,22 @@ function main(){
                     url_wide.style.display='none'; }}}
 
 
+        function set_icon(card){
+            let iconWrap=card.querySelector('.ogpCard_iconWrap');
+            if(iconWrap){
+                if(iconWrap.style.width=='16px'){
+                    card_icon(card, 0); }
+                else{
+                    card_icon(card, 1); }}}
+
+
         function get_domain(card){
-            let domain=def_url.match(/^https?:\/{2,}(.*?)(?:\/|\?|#|$)/)[1];
+            link=card.querySelector('.ogpCard_link');
+            let card_url=link.getAttribute('href');
+            let domain=card_url.match(/^https?:\/{2,}(.*?)(?:\/|\?|#|$)/)[1];
             return domain; }
 
     } // set_url()
-
-
-
-    function query_cut(card){
-        let link=card.querySelector('.ogpCard_link');
-        let url_input=document.querySelector('#url_input');
-
-        let am_url=document.querySelector('#am_url');
-        if(am_url){
-            am_url.onclick=function(){
-                let def_url=link.getAttribute('href');
-                let smart_url;
-                let product;
-
-                if(def_url.indexOf('www.amazon.co')==-1){ // Amazon以外
-                    smart_url=cut_after(def_url, '?'); }
-                else{ // Amazonの場合
-                    if(def_url.indexOf('/b/')==-1 && def_url.indexOf('/b?')==-1 &&
-                       def_url.indexOf('/s/')==-1 && def_url.indexOf('/s?')==-1 &&
-                       cut_before(def_url, '?').indexOf('node=')==-1){
-                        if(def_url.indexOf('/gp/')!=-1){
-                            product=cut_after(cut_before(cut_after(def_url, '?'), '/gp/'), '/ref=');
-                            smart_url='https://www.amazon.co.jp'+ product; }
-                        else if(def_url.indexOf('/dp/')!=-1){
-                            product=cut_after(cut_before(cut_after(def_url, '?'), '/dp/'), '/ref=');
-                            smart_url='https://www.amazon.co.jp'+ product; }
-                        else{
-                            smart_url=cut_after(def_url, '?'); }}
-                    else{
-                        smart_url=def_url; }}
-
-
-                if(card.classList.contains('edit_card')){
-                    link.setAttribute('href', smart_url);
-                    let data_cke_saved_href=
-                        link.getAttribute('data-cke-saved-href');
-                    if(data_cke_saved_href){
-                        link.setAttribute('data-cke-saved-href', smart_url); }
-
-                    url_input.value=smart_url;
-                    url_input.style.background='#80deea';
-                    setTimeout(()=>{
-                        url_input.style.background='';
-                    }, 1500); }}}
-
-
-        function cut_before(row, string){ // 前方を削除
-            let rs;
-            if(row.indexOf(string)!=-1){
-                rs=row.substring(row.indexOf(string));
-                return rs; }
-            else{
-                return row; }}
-
-        function cut_after(row, string){ // 以降を削除
-            let rs;
-            if(row.indexOf(string)!=-1){
-                rs=row.substring(0, row.indexOf(string));
-                return rs; }
-            else{
-                return row; }}
-
-    } // query_cut()
 
 
 
@@ -1365,13 +1309,9 @@ function main(){
             '#disp_le .tc_hint.hint:hover::after { top: 27px; left: -161px; '+
             'content: "　カラーパレット表示：Click ▲　"; } '+
             '#disp_le .lw_hint.hint:hover::after { top: -29px; left: -210px; '+
-            'content: "　リンクURLの書換：Click ▼　 '+
-            'ドメイン表示部に記入：Shift+Click　"; } '+
-            '#disp_le .hint.lw_hint_w:hover::after { top: -29px; left: -503px; '+
-            'content: "　ドメイン表示部に記入：Shift+Click　　'+
-            'リンクURLの書換：Click ▼　"; } '+
-            '#disp_le .la_hint.hint:hover::after { top: -29px; left: -276px; '+
-            'content: "　リンクURLの不要部を省略 : Click ▼　"; } '+
+            'content: "　リンクURLの書換：Click ▼　 "; } '+
+            '#disp_le .hint.lw_hint_w:hover::after { top: -29px; left: -210px; '+
+            'content: "　リンクURLの書換：Click ▼　 "; } '+
             '#disp_le .lb_hint.hint:hover::after { top: -29px; left: -227px; '+
             'content: "　カラーパレット表示：Click ▼　"; } '+
             '#disp_le .lv_hint.hint:hover::after { top: -29px; left: -227px; '+
@@ -1402,10 +1342,11 @@ function main(){
             '#url_wide { position: absolute; top: 4px; left: 37px; '+
             'background: #eceff1 !important; padding: 2px 3px 3px !important; '+
             'border-radius: 0 !important; display: none; } '+
-            '.lw_hint_w +#la_h { margin-right: 400px; } '+
-            '#url_input { height: 18px; width: 265px; padding: 3px 22px 0 12px; '+
+            '.lw_hint { margin-right: 20px; } '+
+            '.lw_hint_w { margin-right: 400px; } '+
+            '#url_input { height: 18px; width: 285px; padding: 3px 22px 0 12px; '+
             'margin: 2px 10px 2px 0; color: #000; } '+
-            '#url_input.url_input_w { width: 575px; padding: 3px 22px 0 32px; } '+
+            '#url_input.url_input_w { width: 599px; padding: 3px 22px 0 32px; } '+
             '#disp_le .url_clear { margin: 0 12px 0 -32px; fill: #444; } '+
             '#disp_le .url_clear:hover { fill: red; } '+
             '#lb_w { display: inline-block; width: 16px; height: 16px; overflow: hidden; '+
@@ -1418,7 +1359,8 @@ function main(){
             '#lbr_disp { width: 36px; margin-left: -6px; text-align: center; } '+
             '#lbr { height: 22px; width: 15px; border: none; background: none; '+
             'margin-right: 20px; } '+
-            '#lbr::-webkit-inner-spin-button { opacity: 1; } ';
+            '#lbr::-webkit-inner-spin-button { opacity: 1; } '+
+            '#link_mark { margin-right: 20px; } ';
 
         if(ua==1){
             le_style+='#lc_trance { width: 18px; } #lborder { width: 18px; } '+
@@ -1497,23 +1439,12 @@ function main(){
             '13 58 17C53 18 39 20 38 27C37 31 49 29 51 29C67 27 85 32 96 45C102 53 '+
             '104 63 105 72C108 94 105 114 102 136z"/></svg>';
 
-        let SVG_am=
-            '<svg id="am_url" viewBox="0 0 448 512">'+
-            '<path fill="#333" d="M257 163c-49 2-170 16-170 118 0 110 138 114 184 '+
-            '43 7 10 35 38 45 47l57-56S341 289 341 261V114C341 89 317 32 229 32 141 '+
-            '32 94 87 94 136l74 7c16-50 54-50 54-50 41-.1 36 30 36 69zm0 87c0 80-84 '+
-            '68-84 17 0-47 51-57 84-58v41zm136 164c-8 10-70 67-175 67S34 409 10 '+
-            '379c-7-8 1-11 6-8C89 415 203 489 388 401c8-4 13 2 6 12zm40 2c-7 16-16 '+
-            '27-21 31-6 5-10 3-7-4s19-47 13-55c-7-8-37-4-48-3-11 1-13 2-14-.3-2-6 '+
-            '22-16 38-18 16-2 41-.8 46 6 4 5 0 27-7 43z"></path></svg>';
-
         let SVG_link=
             '<svg id="link_mark" viewBox="0 0 32 32">'+
             '<path style="fill: currentColor" d="M16 20C14 15 14 13 18 9C20 7 24 4 '+
             '26 7C27 10 23 16 23 19C25 18 27 16 29 14C32 9 30 1 23 1C15 2 4 17 '+
             '16 20M16 12C18 17 18 19 14 23C12 25 8 28 6 25C5 22 9 16 9 13C7 14 '+
             '5 16 3 18C-0 23 2 31 9 31C17 30 28 15 16 12z"></path></svg>';
-
 
         let SVG_mpl=
             '<svg id="memo_plus" viewBox="-45 -20 540 540">'+
@@ -1544,15 +1475,14 @@ function main(){
             '　　 <input id="url_input" type="url" placeholder="変更するURLを入力" '+
             'autocomplete="off">'+
             '<span class="url_clear">'+ SVG_urlc +'</span>'+
-            '<span id="lw_h" class="lw_hint hint">'+ SVG_w + SV_path +'</span> '+
-            '<span id="la_h" class="la_hint hint">'+ SVG_am +'</span>'+
-            '　 枠線色：<span class="lb_hint hint">'+
+            '<span id="lw_h" class="lw_hint hint">'+ SVG_w + SV_path +'</span>'+
+            '枠線色：<span class="lb_hint hint">'+
             '<span id="lb_w"><span id="lb_color">　</span></span></span> '+
             '<span id="lb_disp">　</span>'+
             '<input id="lborder" type="number" max="5" min="0"> '+
             '<span id="lbr_disp">　</span>'+
             '<input id="lbr" type="number" max="30" min="0">'+
-            '<span class="lv_hint hint">'+ SVG_link +'</span>　'+
+            '<span class="lv_hint hint">'+ SVG_link +'</span>'+
             'M：<span class="mpl_hint hint">'+ SVG_mpl +'</span> '+
             '<span class="mp_hint hint">'+ SVG_mps + SV_path +'</span>'+
             '</div>'+ le_style +
