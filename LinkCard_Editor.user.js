@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        LinkCard Editor ⭐
 // @namespace        http://tampermonkey.net/
-// @version        5.5
+// @version        5.6
 // @description        通常表示でリンクカードを編集 「Ctrl+F6」
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/entry/srventry*
@@ -1330,9 +1330,10 @@ function main(){
             '#lc_w, #tc_w { display: inline-block; overflow: hidden; width: 16px; '+
             'height: 16px; border: 1px solid #fff; background: #fff; vertical-align: -3px; } '+
             '#lc_color, #tc_color { cursor: pointer; background: #fff; } '+
-            '#lc_trance { height: 22px; width: 15px; border: none; vertical-align: 1px; '+
-            'background: transparent; margin-right: 1px; } '+
-            '#lc_trance::-webkit-inner-spin-button { opacity: 1; } '+
+            '.ud { font-size: 12px; height: 22px; width: 15px; padding-top: 1px; '+
+            'vertical-align: 1px; border: none; background: #fff; } '+
+            '.ud::-webkit-inner-spin-button { opacity: 1; } '+
+            '#lc_trance { margin: 0; } '+
 
             '#ex_disp { position: relative; } '+
             '#help_q { position: absolute; top: 6px; left: 1px; '+
@@ -1344,9 +1345,9 @@ function main(){
             'border-radius: 0 !important; display: none; } '+
             '.lw_hint { margin-right: 20px; } '+
             '.lw_hint_w { margin-right: 400px; } '+
-            '#url_input { height: 18px; width: 285px; padding: 3px 22px 0 12px; '+
+            '#url_input { height: 18px; width: 282px; padding: 3px 22px 0 12px; '+
             'margin: 2px 10px 2px 0; color: #000; } '+
-            '#url_input.url_input_w { width: 599px; padding: 3px 22px 0 32px; } '+
+            '#url_input.url_input_w { width: 598px; padding: 3px 22px 0 32px; } '+
             '#disp_le .url_clear { margin: 0 12px 0 -32px; fill: #444; } '+
             '#disp_le .url_clear:hover { fill: red; } '+
             '#lb_w { display: inline-block; width: 16px; height: 16px; overflow: hidden; '+
@@ -1354,17 +1355,16 @@ function main(){
             '#lb_color { cursor: pointer; background: #fff; } '+
             '#lb_disp, #lbr_disp { display: inline-block; position: relative; width: 32px; '+
             'color: #fff; background: #607d8b; } '+
-            '#lborder { height: 22px; width: 15px; border: none; background: none; } '+
-            '#lborder::-webkit-inner-spin-button { opacity: 1; } '+
-            '#lbr_disp { width: 36px; margin-left: -6px; text-align: center; } '+
-            '#lbr { height: 22px; width: 15px; border: none; background: none; '+
-            'margin-right: 20px; } '+
-            '#lbr::-webkit-inner-spin-button { opacity: 1; } '+
+            '#lborder { margin: 0; } '+
+            '#lbr_disp { width: 36px; margin-left: -4px; text-align: center; } '+
+            '#lbr { margin-right: 20px; } '+
             '#link_mark { margin-right: 20px; } ';
 
         if(ua==1){
-            le_style+='#lc_trance { width: 18px; } #lborder { width: 18px; } '+
-                '#lbr { width: 18px; margin-right: 16px; }'; }
+            le_style+=
+                '.ud { width: 18px; padding: 0; vertical-align: 2px; background: none; } '+
+                '#lbr { margin-right: 17px; } '+
+                '#url_input.url_input_w { width: 601px; }'; }
 
         le_style+='</style>'
 
@@ -1465,7 +1465,7 @@ function main(){
             '配置：'+ SVG_al + SVG_ac + SVG_ar + '　'+
             '<span class="lc_hint hint">背景色：'+
             '<span id="lc_w"><span id="lc_color">　</span></span></span> '+
-            '<input id="lc_trance" type="number" max="10" min="0.1" step="0.1">'+
+            '<input id="lc_trance" class="ud" type="number" max="10" min="0.1" step="0.1">'+
             '：濃度　<span class="tc_hint hint">文字色：'+
             '<span id="tc_w"><span id="tc_color">　</span></span></span> '+
 
@@ -1479,9 +1479,9 @@ function main(){
             '枠線色：<span class="lb_hint hint">'+
             '<span id="lb_w"><span id="lb_color">　</span></span></span> '+
             '<span id="lb_disp">　</span>'+
-            '<input id="lborder" type="number" max="5" min="0"> '+
+            '<input id="lborder" class="ud" type="number" max="5" min="0"> '+
             '<span id="lbr_disp">　</span>'+
-            '<input id="lbr" type="number" max="30" min="0">'+
+            '<input id="lbr" class="ud" type="number" max="30" min="0">'+
             '<span class="lv_hint hint">'+ SVG_link +'</span>'+
             'M：<span class="mpl_hint hint">'+ SVG_mpl +'</span> '+
             '<span class="mp_hint hint">'+ SVG_mps + SV_path +'</span>'+
