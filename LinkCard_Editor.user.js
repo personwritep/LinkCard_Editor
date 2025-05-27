@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        LinkCard Editor ⭐
 // @namespace        http://tampermonkey.net/
-// @version        5.6
+// @version        5.7
 // @description        通常表示でリンクカードを編集 「Ctrl+F6」
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/entry/srventry*
@@ -1330,9 +1330,10 @@ function main(){
             '#lc_w, #tc_w { display: inline-block; overflow: hidden; width: 16px; '+
             'height: 16px; border: 1px solid #fff; background: #fff; vertical-align: -3px; } '+
             '#lc_color, #tc_color { cursor: pointer; background: #fff; } '+
-            '.ud { font-size: 12px; height: 22px; width: 15px; padding-top: 1px; '+
-            'vertical-align: 1px; border: none; background: #fff; } '+
-            '.ud::-webkit-inner-spin-button { opacity: 1; } '+
+            '.ud { height: 22px; width: 15px; vertical-align: 1px; border: none; '+
+            'background: #fff; } '+
+            'input[type="number"].ud::-webkit-inner-spin-button { '+
+            'opacity: 1; height: 20px; margin-top: 2px; } '+
             '#lc_trance { margin: 0; } '+
 
             '#ex_disp { position: relative; } '+
