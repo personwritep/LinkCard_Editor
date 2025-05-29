@@ -1363,7 +1363,7 @@ function main(){
 
         if(ua==1){
             le_style+=
-                '.ud { width: 18px; padding: 0; vertical-align: 2px; background: none; } '+
+                '.ud { width: 18px; padding: 0; background: none; } '+
                 '#lbr { margin-right: 17px; } '+
                 '#url_input.url_input_w { width: 601px; }'; }
 
