@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        LinkCard Editor ⭐
 // @namespace        http://tampermonkey.net/
-// @version        5.7
+// @version        5.8
 // @description        通常表示でリンクカードを編集 「Ctrl+F6」
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/entry/srventry*
@@ -40,7 +40,6 @@ function main(){
     let ua=0;
     let agent=window.navigator.userAgent.toLowerCase();
     if(agent.indexOf('firefox')!=-1){ ua=1; } // Firefoxの場合
-    if(agent.indexOf('edg')!=-1){ ua=2; } // Edgeの場合
 
 
     let read_json=localStorage.getItem('LinkCard Style');
@@ -389,12 +388,11 @@ function main(){
                 e.stopImmediatePropagation();
                 let img_src=item.getAttribute('data-image');
                 let inner=
-                    '<img alt="" class="ogpCard_image" data-ogp-card-image="" '+
-                    'height="120" loading="lazy" data-cke-saved-src="' + img_src +
-                    '" src="' + img_src +
-                    '" style="position:absolute;top:50%;left:50%;object-fit:cover;'+
-                    'min-height:100%;min-width:100%;'+
-                    'transform:translate(-50%,-50%)" width="120">';
+                    '<img class="ogpCard_image" loading="lazy" '+
+                    'data-cke-saved-src="'+ img_src +'" src="'+ img_src +'" alt="" '+
+                    'data-ogp-card-image="" width="120" height="120" '+
+                    'style="position: absolute; top: 50%; left: 50%; object-fit: cover; '+
+                    'min-height: 100%; min-width: 100%; transform: translate(-50%,-50%)">';
 
                 editor_iframe=document.querySelector('.cke_wysiwyg_frame');
                 if(editor_iframe){
@@ -467,6 +465,10 @@ function main(){
             if(card.classList.contains('edit_card')){
                 if(event.ctrlKey){
                     ex_compact(card); }
+                else if(event.shiftKey){
+                    fit_169(card); }
+                else if(event.altKey){
+                    thum_outline(card); }
                 else{
                     if(mode_e==1){
                         mode_e=0;
@@ -556,7 +558,52 @@ function main(){
         card.classList.remove('ogpCard_root', 'edit_card');
 
         let dupe=card.cloneNode(true);
-        card.parentNode.replaceChild(dupe, card); }
+        card.parentNode.replaceChild(dupe, card);
+
+    } // arrange_ex_compact()
+
+
+
+    function fit_169(card){
+        let link=card.querySelector('.ogpCard_link');
+        let content=card.querySelector('.ogpCard_content');
+        let url=card.querySelector('.ogpCard_url');
+        let imageWrap=card.querySelector('.ogpCard_imageWrap');
+        if(link && content && url && imageWrap){
+            if(link.style.height=='120px'){
+                content.style.padding='12px 16px 8px';
+                if(imageWrap.style.width=='120px'){
+                    url.style.margin='auto -15px 0 15px';
+                    imageWrap.style.width='215px'; }
+                else{
+                    url.style.margin='auto 0 0 20px';
+                    imageWrap.style.width='120px'; }}
+            if(link.style.height=='108px'){
+                if(imageWrap.style.width=='100px'){
+                    content.style.padding='8px 15px 4px 15px';
+                    url.style.margin='auto -15px 0 15px';
+                    imageWrap.style.width='176px';
+                    imageWrap.style.right='2px'; }
+                else{
+                    content.style.padding='8px 25px 4px 15px';
+                    url.style.margin='auto 0 0 20px';
+                    imageWrap.style.width='100px';
+                    imageWrap.style.right='15px'; }}}
+
+    } // fit_169()
+
+
+
+    function thum_outline(card){
+        let link=card.querySelector('.ogpCard_link');
+        let imageWrap=card.querySelector('.ogpCard_imageWrap');
+        if(link && imageWrap){
+            if(imageWrap.style.outlineColor=='rgb(204, 204, 204)'){
+                imageWrap.style.outline='1px solid #777'; }
+            else if(imageWrap.style.outlineColor=='rgb(119, 119, 119)'){
+                imageWrap.style.outline=''; }
+            else{
+                imageWrap.style.outline='1px solid #ccc'; }}}
 
 
 
@@ -582,7 +629,7 @@ function main(){
         if(description){
             description.style.whiteSpace='';
             description.style.textOverflow='';
-            description.style.margin='0';
+            description.style.margin='';
             description.style.font='13px/1.4 Meiryo';
             description.style.display=''; }
         let url=card.querySelector('.ogpCard_url');
@@ -590,14 +637,14 @@ function main(){
             url.style.margin='auto 0 0 20px'; }
         let imageWrap=card.querySelector('.ogpCard_imageWrap');
         if(imageWrap){
-            imageWrap.style.width='98px';
-            imageWrap.style.height='98px';
+            imageWrap.style.width='100px';
+            imageWrap.style.height='100px';
             imageWrap.style.margin='auto 0';
-            imageWrap.style.top='';
             imageWrap.style.right='15px';
-            imageWrap.style.border='1px solid #eee';
             imageWrap.style.overflow='hidden';
-            imageWrap.style.display=''; }}
+            imageWrap.style.display=''; }
+
+    } // arrange_compact()
 
 
 
@@ -623,22 +670,22 @@ function main(){
         if(description){
             description.style.whiteSpace='';
             description.style.textOverflow='';
-            description.style.margin='0';
+            description.style.margin='';
             description.style.font='13px/1.4 Meiryo';
             description.style.display='none'; }
         let url=card.querySelector('.ogpCard_url');
         if(url){
-            url.style.margin='0'; }
+            url.style.margin=''; }
         let imageWrap=card.querySelector('.ogpCard_imageWrap');
         if(imageWrap){
             imageWrap.style.width='';
             imageWrap.style.height='';
             imageWrap.style.margin='';
-            imageWrap.style.top='';
             imageWrap.style.right='';
-            imageWrap.style.border='';
             imageWrap.style.overflow='';
-            imageWrap.style.display='none'; }}
+            imageWrap.style.display='none'; }
+
+    } // arrange_min()
 
 
 
@@ -676,11 +723,11 @@ function main(){
             imageWrap.style.width='120px';
             imageWrap.style.height='120px';
             imageWrap.style.margin='';
-            imageWrap.style.top='';
             imageWrap.style.right='';
-            imageWrap.style.border='';
             imageWrap.style.overflow='hidden';
-            imageWrap.style.display=''; }}
+            imageWrap.style.display=''; }
+
+    } // arrange_default()
 
 
 
@@ -748,7 +795,7 @@ function main(){
         iframe_doc=editor_iframe.contentWindow.document;
         selection=iframe_doc.getSelection();
 
-        if(ua==0 || ua==2){
+        if(ua==0){
             color_label=document.querySelector('#cke_16_label');
             icon_button=document.querySelector('#cke_17'); }
         else if(ua==1){
@@ -978,10 +1025,7 @@ function main(){
         let link_bc=link.style.borderColor;
         if(link_bc){
             lb_color.style.background=link_bc; }
-
-        import_color(card, lb_color, link, 'bd');
-
-    } // bd_color()
+        import_color(card, lb_color, link, 'bd'); }
 
 
 
@@ -1036,10 +1080,7 @@ function main(){
         if(!svg_c || svg_c=='currentcolor'){
             svg.style.color=window.getComputedStyle(iconWrap).color; }
         else{ svg.style.color=svg_c; }
-
-        import_color(card, svg, iconWrap, 'svg');
-
-    } // link_icon()
+        import_color(card, svg, iconWrap, 'svg'); }
 
 
 
@@ -1148,7 +1189,6 @@ function main(){
                                 urlText.style.fontWeight='';
                                 svg.style.color=window.getComputedStyle(iconWrap).color; }}}}
 
-
                 else if(event.ctrlKey){ //「リンクアイコン」⇄「ファビコン」の変更
                     if(card.classList.contains('edit_card')){
                         let iconWrap_img=card.querySelector('.ogpCard_iconWrap img');
@@ -1156,7 +1196,6 @@ function main(){
                             card_icon(card, 0); }
                         else{
                             card_icon(card, 1); }}}
-
 
                 else{ // カード全体に「登録デザイン」適用
                     if(card.classList.contains('edit_card')){
@@ -1262,6 +1301,7 @@ function main(){
                 iconWrap.style.flexShrink='';
                 iconWrap.style.font='bold 14px/17px Meiryo';
                 iconWrap.style.transform=''; }}
+
     } // card_icon()
 
 
@@ -1301,9 +1341,9 @@ function main(){
             'padding: 1px 9px 0; font: 16px Meiryo; color: #fff; background: #000; } '+
             '#disp_le .ls_hint { margin: 0 45px 0 15px; } '+
             '#disp_le .ls_hint b { color: #a4fff7; } '+
-            '#disp_le .lz_hint.hint:hover::after { top: 27px; left: -213px; '+
-            'content: "　　　　　標準▸中型▸小型：Click　▲　　'+
-            '軽量化Cardに変更：Ctrl+Click　　　"; } '+
+            '#disp_le .lz_hint.hint:hover::after { top: 27px; left: -248px; '+
+            'content: "　標準▸中型▸小型：Click　 軽量化：Ctrl+Click　 '+
+            'サムネイル幅：Shift+Click　 内枠色：Alt+Click　"; } '+
             '#disp_le .lc_hint.hint:hover::after { top: 27px; left: -161px; '+
             'content: "　カラーパレット表示：Click ▲ 　"; } '+
             '#disp_le .tc_hint.hint:hover::after { top: 27px; left: -161px; '+
@@ -1457,7 +1497,6 @@ function main(){
         let SVG_mps=
             '<svg id="memo_paste" viewBox="0 -10 256 256">';
 
-
         let disp=
             '<div id="disp_le">'+
             '<span class="e_hint"></span>'+
@@ -1571,6 +1610,7 @@ function main(){
                 else if(editor_iframe){ // 通常表示の場合
                     mode=0;
                     card_close(); }}}
+
     } // before_end()
 
 
