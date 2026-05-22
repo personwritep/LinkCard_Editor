@@ -1,0 +1,369 @@
+// ==UserScript==
+// @name         LinkCard Editor ⭐
+// @namespace    http://tampermonkey.net/
+// @version      0.4
+// @description  「通常表示」上のリンクカードを編集 「Ctrl+F6」
+// @author       Ameba Blog User
+// @match        https://blog.ameba.jp/ucs/entry/srventry*
+// @exclude      https://blog.ameba.jp/ucs/entry/srventrylist.do*
+// @grant        none
+// ==/UserScript==
+
+
+let mode=0; // Card編集状態
+
+let retry=0;
+let interval=setInterval(wait_target, 100);
+function wait_target(){
+    retry++;
+    if(retry>10){ // リトライ制限 10回 1sec
+        clearInterval(interval); }
+    let target=document.querySelector('#cke_1_contents'); // 監視 target
+    if(target){
+        clearInterval(interval);
+        main(); }}
+
+
+function main(){
+    let editor_iframe;
+    let iframe_doc;
+    let iframe_body;
+    let wysiwyg; // 通常表示の iframe内 html
+    let selection;
+    let range;
+
+
+    let target0=document.querySelector('#cke_1_contents'); // 監視 target
+    let monitor0=new MutationObserver( catch_key );
+    monitor0.observe(target0, {childList: true}); // ショートカット待受け開始
+
+    catch_key();
+
+    function catch_key(){
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){ // WYSIWYG表示が実行条件
+
+            when_back();
+
+            iframe_doc=editor_iframe.contentWindow.document;
+            iframe_doc.addEventListener('keydown', check_key); // iframe内
+            document.addEventListener('keydown', check_key); // iframe外
+
+            function check_key(event){
+                if(event.ctrlKey && event.keyCode==117){ // ショートカット「Crtl+F6」
+                    event.stopImmediatePropagation();
+                    if(mode==0 && editor_iframe){
+                        mode=1;
+                        sign();
+                        card_edit(); }
+                    else if(mode==1 && editor_iframe){
+                        mode=0;
+                        sign_clear();
+                        card_close(); }}}}
+
+        before_end();
+    } // catch_key()
+
+
+    function when_back(){
+        if(mode==1){
+            sign();
+            card_edit_r();
+            card_edit(); }}
+
+
+    function card_close(){
+
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){ // WYSIWYG表示が実行条件
+            iframe_doc=editor_iframe.contentWindow.document;
+            if(iframe_doc){
+                iframe_body=iframe_doc.querySelector('body');
+                if(iframe_body){
+                    selection=iframe_doc.getSelection(); //Selection取得
+                    range=iframe_doc.createRange(); //Range生成
+                    selection.removeAllRanges();
+
+                    let target_card=iframe_body.querySelectorAll('.ogpCard_root');
+                    for(let k=0; k<target_card.length; k++){
+                        if(target_card[k].classList.contains('edit_card')){
+                            target_card[k].classList.remove('edit_card');
+                            let ogpCard_wrap=target_card[k].querySelector('.ogpCard_wrap');
+                            if(ogpCard_wrap){
+                                ogpCard_wrap.setAttribute('contenteditable', 'false'); }}}}}}}
+
+
+    function card_edit(){
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){ // WYSIWYG表示が実行条件
+            iframe_doc=editor_iframe.contentWindow.document;
+            if(iframe_doc){
+                iframe_body=iframe_doc.querySelector('body');
+                if(iframe_body){
+                    let target_card=iframe_body.querySelectorAll('.ogpCard_root');
+                    for(let k=0; k<target_card.length; k++){
+                        target_card[k].addEventListener('click', function(event){
+                            event.preventDefault();
+                            if(event.ctrlKey){
+                                set_card(target_card[k]); }}); }
+
+                    function set_card(card){
+                        if(mode==1){
+                            card_close();
+                            card.classList.add('edit_card');
+                            edit_in(card); }}
+                }}}} // card_edit()
+
+
+    function card_edit_r(){
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){ // WYSIWYG表示が実行条件
+            iframe_doc=editor_iframe.contentWindow.document;
+            if(iframe_doc){
+                iframe_body=iframe_doc.querySelector('body');
+                if(iframe_body){
+                    let target_card=iframe_body.querySelectorAll('.ogpCard_root');
+                    for(let k=0; k<target_card.length; k++){
+                        if(target_card[k].classList.contains('edit_card')){
+                            edit_in(target_card[k]); }}}}}}
+
+
+    function edit_in(card){
+        if(mode==1){
+            let ogpCard_wrap=card.querySelector('.ogpCard_wrap');
+            if(ogpCard_wrap){
+                ogpCard_wrap.setAttribute('contenteditable', 'true'); } // 編集可能にする
+
+            let card_link=card.querySelector('.ogpCard_link');
+            if(!card.querySelector('.ogpCard_imageWrap')){
+                let imgw=document.createElement('span');
+                imgw.setAttribute('class', 'ogpCard_imageWrap');
+                imgw.setAttribute('style', 'position:relative;width:120px;height:120px;flex-shrink:0');
+                card_link.appendChild(imgw); } // カバー画像が無い場合に表示エリアを確保する
+
+            arrange_in(card);
+            bgcolor_set(card);
+            select_span();
+            item_setter(); }} // edit_in()
+
+
+    function item_setter(){
+        let target1=document.querySelector('#js-photos-imageList'); // 監視 target
+        let monitor1=new MutationObserver(item_select);
+        monitor1.observe(target1, {childList: true, subtree: true}); // 画像パレット監視
+
+        item_select();
+
+        function item_select(){
+            let item=document.querySelectorAll('.p-images-imageList__item');
+            for(let k=0; k<item.length; k++){
+                item[k].addEventListener('click', function(event){
+                    set_img(event, item[k]); }); }}
+
+        function set_img(e, item){
+            if(mode==1){
+                e.stopImmediatePropagation();
+                let img_src=item.getAttribute('data-image');
+                let inner=
+                    '<img alt="" class="ogpCard_image" data-ogp-card-image="" height="120" '+
+                    'loading="lazy" data-cke-saved-src="' + img_src +
+                    '" src="' + img_src +
+                    '" style="position:absolute;top:50%;left:50%;object-fit:cover;'+
+                    'min-height:100%;min-width:100%;'+
+                    'transform:translate(-50%,-50%)" width="120">';
+
+                editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+                if(editor_iframe){ // WYSIWYG表示が実行条件
+                    iframe_doc=editor_iframe.contentWindow.document;
+                    if(iframe_doc){
+                        iframe_body=iframe_doc.querySelector('body');
+                        if(iframe_body){
+                            let target_card=iframe_body.querySelectorAll('.ogpCard_root');
+                            for(let k=0; k<target_card.length; k++){
+                                if(target_card[k].classList.contains('edit_card')){
+                                    range_con(target_card[k]);
+                                    let card_imgw=target_card[k].querySelector('.ogpCard_imageWrap');
+                                    if(card_imgw){
+                                        card_imgw.innerHTML=inner; }}}
+
+                            function range_con(card){
+                                if(mode==1){
+                                    selection=iframe_doc.getSelection(); //Selection取得
+                                    range=iframe_doc.createRange(); //Range生成
+                                    range.setStart(card, 0);
+                                    range.setEnd(card, 0);
+                                    selection.removeAllRanges();
+                                    selection.addRange(range); }} // 選択Cardにselectionを指定
+                        }}}}} // set_img()
+    } // item_setter()
+
+
+    function arrange_in(card){
+        let al=document.querySelector('#disp_le #al');
+        let ac=document.querySelector('#disp_le #ac');
+        let ar=document.querySelector('#disp_le #ar');
+        al.onclick=function(){ arrange_setting(0); }
+        ac.onclick=function(){ arrange_setting(1); }
+        ar.onclick=function(){ arrange_setting(2); }
+
+        function arrange_setting(n){
+            if(card.classList.contains('edit_card')){
+                if(n==0){
+                    card.style.textAlign='left'; }
+                else if(n==1){
+                    card.style.textAlign='center'; }
+                else if(n==2){
+                    card.style.textAlign='right'; }
+
+                let link=card.querySelector('.ogpCard_link');
+                if(link){
+                    link.style.width='500px';
+                    link.style.height='108px';
+                    link.style.margin='0 auto';
+                    link.style.border='1px solid #009688'; }
+                let content=card.querySelector('.ogpCard_content');
+                if(content){
+                    content.style.padding='8px 25px 4px 15px'; }
+                let title=card.querySelector('.ogpCard_title');
+                if(title){
+                    title.style.flexShrink='0';
+                    title.style.font='bold 16px/1.25 Meiryo';
+                    slim_title(card); }
+                let description=card.querySelector('.ogpCard_description');
+                if(description){
+                    description.style.whiteSpace='unset';
+                    description.style.margin='0';
+                    description.style.font='13px/1.4 Meiryo'; }
+                let imageW=card.querySelector('.ogpCard_imageWrap');
+                if(imageW){
+                    imageW.style.width='98px';
+                    imageW.style.height='98px';
+                    imageW.style.top='3px';
+                    imageW.style.right='15px';
+                    imageW.style.border='1px solid #eee'; }
+
+                function slim_title(card){ // 先頭・末尾が『』の場合にカッコを削除
+                    let link=card.querySelector('.ogpCard_link');
+                    if(link.getAttribute('href').includes('https://ameblo.jp/')){
+                        let title=card.querySelector('.ogpCard_title');
+                        if(title){
+                            let title_str=title.textContent;
+                            if(title_str.slice(0, 1)=='『' && title_str.slice(-1)=='』'){
+                                title_str=title_str.slice(1).slice(0, -1); }
+                            title.textContent=title_str; }}}
+            }}} // arrange_in()
+
+
+    function bgcolor_set(card){
+        let link=card.querySelector('.ogpCard_link');
+        let color=document.querySelector('#lc_color');
+        if(color){
+            color.onclick=function(event){
+                if(event.ctrlKey){
+                    event.preventDefault();
+                    if(card.classList.contains('edit_card')){
+                        link.style.backgroundColor=color.value; }}}}}
+
+
+    function select_span(){
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){ // WYSIWYG表示が実行条件
+            iframe_doc=editor_iframe.contentWindow.document;
+            if(iframe_doc){
+                iframe_doc.onclick=function(event){
+                    if(event.ctrlKey){
+                        let elem=iframe_doc.elementFromPoint(event.clientX, event.clientY);
+
+                        let closest_ogp=elem.closest('.ogpCard_root');
+                        if(closest_ogp && closest_ogp.classList.contains('edit_card')){
+                            if(elem.classList.contains('ogpCard_title') ||
+                               elem.classList.contains('ogpCard_description') ||
+                               elem.classList.contains('ogpCard_urlText') ||
+                               elem.parentNode.classList.contains('ogpCard_description')){
+                                selection=iframe_doc.getSelection(); //Selection取得
+                                range=iframe_doc.createRange(); //Range生成
+                                range.selectNodeContents(elem);
+                                selection.removeAllRanges();
+                                selection.addRange(range); }}}}}}}
+
+
+
+    function sign(){
+        monitor0.disconnect(); // 起動時セットアップを MutationObserverに反応させない
+
+        let disp=document.createElement("div");
+        disp.setAttribute("id", "disp_le");
+        disp.innerHTML=
+            '　　　▢ LinkCard Editor　カード指定：Ctrl+Click　小型化と配置：'+
+            '<span id="al">◀</span><span id="ac"> ▇ </span><span id="ar">▶</span>'+
+            '　背景色：<input type="color" id="lc_color" value="#ffffff">';
+
+        let css=
+            '#cke_1_contents { display: flex; flex-direction: column; } '+
+            '#disp_le { display: none; margin: 0 0 9px; padding: 4px 0 2px; '+
+            'font: normal 16px Meiryo; color: #fff; background: #607d8b; } '+
+            '#ac { font-size: 14px; vertical-align: 1px; } '+
+            '#al, #ac, #ar { cursor: pointer; } '+
+            '#lc_color { width: 20px; height: 20px; }';
+
+        let style=document.createElement('style'); // disp_le のデザインを指定
+        style.setAttribute("id", "le_style");
+        style.innerHTML=css;
+        disp.appendChild(style);
+
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){
+            if(!target0.querySelector('#disp_le')){
+                target0.insertBefore(disp, editor_iframe); }}
+
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){
+            iframe_doc=editor_iframe.contentWindow.document;
+            if(iframe_doc){
+                let iframe_html=iframe_doc.querySelector('html');
+                iframe_body=iframe_doc.querySelector('body');
+                if(iframe_html && iframe_body){
+                    let card_style= iframe_doc.createElement('style'); // 選択Card のデザインを指定
+                    let css='.edit_card { outline: 2px solid #2196f3; }';
+                    card_style.setAttribute("id", "card_style");
+                    card_style.innerHTML=css;
+                    if(!iframe_html.querySelector('#card_style')){
+                        iframe_html.appendChild(card_style); }}}}
+
+
+        let disp_le=document.querySelector('#disp_le');
+        disp_le.style.display='block';
+
+        let photos_w=document.querySelector('#js-photos-wrapper');
+        photos_w.style.outline='2px solid #2196f3'; // 画像パレットに青枠表示
+
+        monitor0.observe(target0, {childList: true});
+    } // sign()
+
+
+    function sign_clear(){
+        if(target0.querySelector('#disp_le')){
+            target0.querySelector('#disp_le').style.display='none'; } // 起動表示を非表示
+        let photos_w=document.querySelector('#js-photos-wrapper');
+        photos_w.style.outline=''; } // 画像パレットの青枠を削除
+
+
+    function before_end(){
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        let submitButton=document.querySelectorAll('.js-submitButton');
+        submitButton[0].addEventListener("click", all_close, false);
+        submitButton[1].addEventListener("click", all_close, false);
+
+        function all_close(){
+            if(mode==1){
+                if(!editor_iframe){ //「HTML表示」編集画面の場合
+                    alert("⛔　LinkCard Editor が処理を終了していません\n\n"+
+                          "　　 通常表示画面に戻り 編集を終了してください");
+                    event.stopImmediatePropagation();
+                    event.preventDefault(); }
+                else if(editor_iframe){ //「通常表示」編集画面の場合
+                    mode=0;
+                    card_close(); }}}
+    } // before_end()
+
+} // main()
