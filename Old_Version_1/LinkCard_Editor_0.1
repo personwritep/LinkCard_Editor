@@ -1,0 +1,165 @@
+// ==UserScript==
+// @name         LinkCard Editor ⭐
+// @namespace    http://tampermonkey.net/
+// @version      0.1
+// @description  「通常表示」上のリンクカードを編集 「Ctrl+F6」
+// @author       Ameba Blog User
+// @match        https://blog.ameba.jp/ucs/entry/srventry*
+// @exclude      https://blog.ameba.jp/ucs/entry/srventrylist.do*
+// @grant        none
+// ==/UserScript==
+
+
+let mode=0; // Card編集状態
+
+let retry=0;
+let interval=setInterval(wait_target, 100);
+function wait_target(){
+    retry++;
+    if(retry>10){ // リトライ制限 10回 1sec
+        clearInterval(interval); }
+    let target=document.getElementById('cke_1_contents'); // 監視 target
+    if(target){
+        clearInterval(interval);
+        main(); }}
+
+
+function main(){
+    let editor_iframe;
+    let iframe_doc;
+    let iframe_body;
+    let wysiwyg; // 通常表示の iframe内 html
+
+
+    let target=document.getElementById('cke_1_contents'); // 監視 target
+    let monitor=new MutationObserver( catch_key );
+    monitor.observe(target, {childList: true}); // ショートカット待受け開始
+
+    catch_key();
+
+    function catch_key(){
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){ // WYSIWYG表示が実行条件
+            when_back();
+
+            iframe_doc=editor_iframe.contentWindow.document;
+            iframe_doc.addEventListener('keydown', check_key); // iframe内
+            document.addEventListener('keydown', check_key); // iframe外
+
+            function check_key(event){
+                if(event.ctrlKey && event.keyCode==117){ // ショートカット「Crtl+F6」
+                    event.stopImmediatePropagation();
+                    if(mode==0){
+                        mode=1;
+                        sign();
+                        card_edit(); }
+                    else if(mode==1){
+                        mode=0;
+                        sign_clear();
+                        card_close(); }}}}
+
+        before_end();
+    } // catch_key()
+
+
+
+    function when_back(){
+        if(mode==1){
+            sign();
+            card_edit(); }}
+
+
+    function card_edit(){
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){ // WYSIWYG表示が実行条件
+            iframe_doc=editor_iframe.contentWindow.document;
+            if(iframe_doc){
+                let iframe_body=iframe_doc.querySelector('body');
+                if(iframe_body){
+                    let target_card=iframe_body.querySelectorAll('.ogpCard_root');
+                    for(let k=0; k<target_card.length; k++){
+                        let ogpCard_wrap=target_card[k].querySelector('.ogpCard_wrap');
+                        if(ogpCard_wrap){
+                            ogpCard_wrap.setAttribute('contenteditable', 'true'); }}
+                }}}} // card_edit()
+
+
+    function card_close(){
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){ // WYSIWYG表示が実行条件
+            iframe_doc=editor_iframe.contentWindow.document;
+            if(iframe_doc){
+                let iframe_body=iframe_doc.querySelector('body');
+                if(iframe_body){
+                    let target_card=iframe_body.querySelectorAll('.ogpCard_root');
+                    for(let k=0; k<target_card.length; k++){
+                        let ogpCard_wrap=target_card[k].querySelector('.ogpCard_wrap');
+                        if(ogpCard_wrap){
+                            ogpCard_wrap.setAttribute('contenteditable', 'false'); }}
+                }}}}
+
+
+    function sign(){
+        monitor.disconnect(); // 起動時セットアップを MutationObserverに反応させない
+
+        let css=
+            '#cke_1_contents { display: flex; flex-direction: column; } '+
+            '#disp_le { display: none; margin: 0 0 9px; padding: 4px 0 2px; '+
+            'font-size: 16px; color: #fff; background: #607d8b; }';
+        let disp=document.createElement("div");
+        disp.setAttribute("id", "disp_le");
+        disp.innerHTML="　　　▢ LinkCard Editor";
+
+        let style=document.createElement('style'); // disp_le のデザインを指定
+        style.setAttribute("id", "le_style");
+        style.innerHTML=css;
+        if(!target.querySelector('#le_style')){
+            target.appendChild(style); }
+
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){
+            if(!target.querySelector('#disp_le')){
+                target.insertBefore(disp, editor_iframe); }}
+        target.querySelector('#disp_le').style.display='block';
+
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){
+            iframe_doc=editor_iframe.contentWindow.document;
+            iframe_body=iframe_doc.querySelector('body');
+            let box_style= iframe_doc.createElement('style'); // box のデザインを指定
+            let css_box=
+                '.open_box { outline: 2px solid green !important; height: auto !important; }';
+            box_style.setAttribute("id", "box_style");
+            box_style.innerHTML=css_box;
+            let iframe_html=iframe_doc.getElementsByTagName('html')[0];
+            if(!iframe_html.querySelector('#box_style')){
+                iframe_html.appendChild(box_style); }}
+
+        monitor.observe(target, {childList: true}); }
+
+
+    function sign_clear(){
+        if(target.querySelector('#disp_le')){
+            target.querySelector('#disp_le').style.display='none'; }} // 起動表示を非表示
+
+
+    function before_end(){
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        let submitButton=document.querySelectorAll('.js-submitButton');
+        submitButton[0].addEventListener("click", all_close, false);
+        submitButton[1].addEventListener("click", all_close, false);
+
+        function all_close(){
+            if(mode==1){
+                if(!editor_iframe){ //「HTML表示」編集画面の場合
+                    alert("⛔　LinkCard Editor が処理を終了していません\n\n"+
+                          "　　 通常表示画面に戻り 編集を終了してください");
+                    event.stopImmediatePropagation();
+                    event.preventDefault(); }
+                else if(editor_iframe){ //「通常表示」編集画面の場合
+                    mode=0;
+                    card_close(); }}}
+    } // before_end()
+
+
+} // main()
