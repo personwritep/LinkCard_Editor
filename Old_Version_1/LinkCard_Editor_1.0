@@ -1,0 +1,564 @@
+// ==UserScript==
+// @name         LinkCard Editor ⭐
+// @namespace    http://tampermonkey.net/
+// @version      1.0
+// @description  「通常表示」上のリンクカードを編集 「Ctrl+F6」
+// @author       Ameba Blog User
+// @match        https://blog.ameba.jp/ucs/entry/srventry*
+// @exclude      https://blog.ameba.jp/ucs/entry/srventrylist.do*
+// @grant        none
+// ==/UserScript==
+
+
+let mode=0; // Card編集状態
+let set_color; // Card背景色設定
+let ex_mode=0; // exパネルの表示・非表示
+let new_url=''; // 入力した新規url
+
+let retry=0;
+let interval=setInterval(wait_target, 100);
+function wait_target(){
+    retry++;
+    if(retry>10){ // リトライ制限 10回 1sec
+        clearInterval(interval); }
+    let target=document.querySelector('#cke_1_contents'); // 監視 target
+    if(target){
+        clearInterval(interval);
+        main(); }}
+
+
+function main(){
+    let editor_iframe;
+    let iframe_doc;
+    let iframe_body;
+    let wysiwyg; // 通常表示の iframe内 html
+    let selection;
+    let range;
+
+    let ua=0; // Chromeの場合のフラグ
+    let agent=window.navigator.userAgent.toLowerCase();
+    if(agent.indexOf('firefox') > -1){ ua=1; } // Firefoxの場合のフラグ
+
+
+    let target0=document.querySelector('#cke_1_contents'); // 監視 target
+    let monitor0=new MutationObserver( catch_key );
+    monitor0.observe(target0, {childList: true}); // ショートカット待受け開始
+
+    catch_key();
+
+    function catch_key(){
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){ // WYSIWYG表示が実行条件
+
+            when_back();
+
+            iframe_doc=editor_iframe.contentWindow.document;
+            iframe_doc.addEventListener('keydown', check_key); // iframe内
+            document.addEventListener('keydown', check_key); // iframe外
+
+            function check_key(event){
+                if(event.ctrlKey && event.keyCode==117){ // ショートカット「Crtl+F6」
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                    if(mode==0 && editor_iframe){
+                        mode=1;
+                        sign();
+                        card_edit(); }
+                    else if(mode==1 && editor_iframe){
+                        mode=0;
+                        sign_clear();
+                        card_close();
+                        lb_reset(); }}}} // 枠線設定をリセット
+
+        before_end();
+    } // catch_key()
+
+
+    function when_back(){
+        if(mode==1){
+            sign();
+            card_edit_r();
+            card_edit(); }}
+
+
+    function card_close(){
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){ // WYSIWYG表示が実行条件
+            iframe_doc=editor_iframe.contentWindow.document;
+            if(iframe_doc){
+                iframe_body=iframe_doc.querySelector('body');
+                if(iframe_body){
+                    selection=iframe_doc.getSelection(); //Selection取得
+                    range=iframe_doc.createRange(); //Range生成
+                    selection.removeAllRanges();
+
+                    let target_card=iframe_body.querySelectorAll('.ogpCard_root');
+                    for(let k=0; k<target_card.length; k++){
+                        if(target_card[k].classList.contains('edit_card')){
+                            target_card[k].classList.remove('edit_card');
+                            let ogpCard_wrap=target_card[k].querySelector('.ogpCard_wrap');
+                            if(ogpCard_wrap){
+                                ogpCard_wrap.setAttribute('contenteditable', 'false'); }}}}}}}
+
+
+    function card_edit(){
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){ // WYSIWYG表示が実行条件
+            iframe_doc=editor_iframe.contentWindow.document;
+            if(iframe_doc){
+                iframe_body=iframe_doc.querySelector('body');
+                if(iframe_body){
+                    let target_card=iframe_body.querySelectorAll('.ogpCard_root');
+                    for(let k=0; k<target_card.length; k++){
+                        target_card[k].addEventListener('click', function(event){
+                            event.preventDefault();
+                            if(event.ctrlKey){
+                                set_card(target_card[k]); }}); } // Card 編集開始
+
+                    function set_card(card){
+                        if(mode==1){
+                            card_close(); // 他の Cardを閉じる
+                            card.classList.add('edit_card');
+                            edit_in(card); }}
+                }}}} // card_edit()
+
+
+    function card_edit_r(){
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){ // WYSIWYG表示が実行条件
+            iframe_doc=editor_iframe.contentWindow.document;
+            if(iframe_doc){
+                iframe_body=iframe_doc.querySelector('body');
+                if(iframe_body){
+                    let target_card=iframe_body.querySelectorAll('.ogpCard_root');
+                    for(let k=0; k<target_card.length; k++){
+                        if(target_card[k].classList.contains('edit_card')){
+                            edit_in(target_card[k]); }}}}}}
+
+
+    function edit_in(card){
+        if(mode==1){
+            let ogpCard_wrap=card.querySelector('.ogpCard_wrap');
+            if(ogpCard_wrap){
+                ogpCard_wrap.setAttribute('contenteditable', 'true'); } // 編集可能にする
+
+            let card_link=card.querySelector('.ogpCard_link');
+            if(!card.querySelector('.ogpCard_imageWrap')){
+                let imgw=document.createElement('span');
+                imgw.setAttribute('class', 'ogpCard_imageWrap');
+                imgw.setAttribute('style', 'position:relative;width:120px;height:120px;flex-shrink:0');
+                card_link.appendChild(imgw); } // カバー画像が無い場合に表示エリアを確保する
+
+            item_setter();
+            arrange_in(card);
+            bgcolor_set(card);
+            select_span();
+            if(ua==1){
+                moz(card); }
+            set_url(card);
+            lb_width(card);
+        }} // edit_in()
+
+
+    function item_setter(){
+        let target1=document.querySelector('#js-photos-imageList'); // 監視 target
+        let monitor1=new MutationObserver(item_select);
+        monitor1.observe(target1, {childList: true, subtree: true}); // 画像パレット監視
+
+        item_select();
+
+        function item_select(){
+            let item=document.querySelectorAll('.p-images-imageList__item');
+            for(let k=0; k<item.length; k++){
+                item[k].addEventListener('click', function(event){
+                    set_img(event, item[k]); }); }}
+
+        function set_img(e, item){
+            if(mode==1){
+                e.stopImmediatePropagation();
+                let img_src=item.getAttribute('data-image');
+                let inner=
+                    '<img alt="" class="ogpCard_image" data-ogp-card-image="" height="120" '+
+                    'loading="lazy" data-cke-saved-src="' + img_src +
+                    '" src="' + img_src +
+                    '" style="position:absolute;top:50%;left:50%;object-fit:cover;'+
+                    'min-height:100%;min-width:100%;'+
+                    'transform:translate(-50%,-50%)" width="120">';
+
+                editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+                if(editor_iframe){ // WYSIWYG表示が実行条件
+                    iframe_doc=editor_iframe.contentWindow.document;
+                    if(iframe_doc){
+                        iframe_body=iframe_doc.querySelector('body');
+                        if(iframe_body){
+                            let target_card=iframe_body.querySelectorAll('.ogpCard_root');
+                            for(let k=0; k<target_card.length; k++){
+                                if(target_card[k].classList.contains('edit_card')){
+                                    range_con(target_card[k]);
+                                    let card_imgw=target_card[k].querySelector('.ogpCard_imageWrap');
+                                    if(card_imgw){
+                                        card_imgw.innerHTML=inner; }}}
+
+                            function range_con(card){
+                                if(mode==1){
+                                    selection=iframe_doc.getSelection(); //Selection取得
+                                    range=iframe_doc.createRange(); //Range生成
+                                    range.setStart(card, 0);
+                                    range.setEnd(card, 0);
+                                    selection.removeAllRanges();
+                                    selection.addRange(range); }} // 選択Cardにselectionを指定
+                        }}}}} // set_img()
+    } // item_setter()
+
+
+    function arrange_in(card){
+        let al=document.querySelector('#disp_le #al');
+        let ac=document.querySelector('#disp_le #ac');
+        let ar=document.querySelector('#disp_le #ar');
+        al.onclick=function(){ arrange_setting(0); }
+        ac.onclick=function(){ arrange_setting(1); }
+        ar.onclick=function(){ arrange_setting(2); }
+
+        function arrange_setting(n){
+            if(card.classList.contains('edit_card')){
+                if(n==0){
+                    card.style.textAlign='left'; }
+                else if(n==1){
+                    card.style.textAlign='center'; }
+                else if(n==2){
+                    card.style.textAlign='right'; }
+
+                let link=card.querySelector('.ogpCard_link');
+                if(link){
+                    link.style.width='500px';
+                    link.style.height='108px';
+                    link.style.margin='0 auto';
+                    link.style.border='1px solid #009688'; }
+                let content=card.querySelector('.ogpCard_content');
+                if(content){
+                    content.style.padding='8px 25px 4px 15px'; }
+                let title=card.querySelector('.ogpCard_title');
+                if(title){
+                    title.style.flexShrink='0';
+                    title.style.font='bold 16px/1.25 Meiryo';
+                    slim_title(card); }
+                let description=card.querySelector('.ogpCard_description');
+                if(description){
+                    description.style.whiteSpace='unset';
+                    description.style.margin='0';
+                    description.style.font='13px/1.4 Meiryo'; }
+                let imageW=card.querySelector('.ogpCard_imageWrap');
+                if(imageW){
+                    imageW.style.width='98px';
+                    imageW.style.height='98px';
+                    imageW.style.margin='auto 0';
+                    imageW.style.right='15px';
+                    imageW.style.border='1px solid #eee'; }
+
+                function slim_title(card){ // 先頭・末尾が『』の場合にカッコを削除
+                    let link=card.querySelector('.ogpCard_link');
+                    if(link.getAttribute('href').includes('https://ameblo.jp/')){
+                        let title=card.querySelector('.ogpCard_title');
+                        if(title){
+                            let title_str=title.textContent;
+                            if(title_str.slice(0, 1)=='『' && title_str.slice(-1)=='』'){
+                                title_str=title_str.slice(1).slice(0, -1); }
+                            title.textContent=title_str; }}}
+            }}} // arrange_in()
+
+
+    function bgcolor_set(card){
+        let color_label;
+        let icon_button;
+
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        iframe_doc=editor_iframe.contentWindow.document;
+        selection=iframe_doc.getSelection();
+
+        if(ua==0){
+            color_label=document.querySelector('#cke_16_label');
+            icon_button=document.querySelector('#cke_17'); }
+        else if(ua==1){
+            color_label=document.querySelector('#cke_15_label');
+            icon_button=document.querySelector('#cke_16'); }
+
+        let target_p=color_label; // 監視 アイコンのカラーラベル
+        let monitor_p=new MutationObserver(get_copy); // 選択色の取得
+
+        let lc_color=document.querySelector('#lc_color');
+        lc_color.onclick=function(event){
+            selection.removeAllRanges(); // 記事中に反転選択がある場合に背景指定を防止
+            if(event.ctrlKey){
+                let lc_css=getComputedStyle(lc_color, null);
+                set_color=lc_css.getPropertyValue("background-color");
+                let link=card.querySelector('.ogpCard_link');
+                let content=card.querySelector('.ogpCard_content');
+                if(card.classList.contains('edit_card')){
+                    link.style.backgroundColor=set_color;
+                    content.style.backgroundColor='unset'; }}
+            else{
+                icon_button.click();
+                monitor_p.observe(target_p, {attributes: true}); }} // アイコンカラー取得開始
+
+        document.addEventListener('mousedown', function(){
+            monitor_p.disconnect(); }); // アイコンカラー取得終了
+
+        if(document.querySelector('.cke_wysiwyg_frame') !=null){
+            editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+            if(editor_iframe){
+                iframe_doc=editor_iframe.contentWindow.document;
+                if(iframe_doc){
+                    iframe_doc.addEventListener('mousedown', function(){
+                        monitor_p.disconnect(); }); }}} // アイコンカラー取得終了
+
+        function get_copy(){
+            let lc_color=document.querySelector('#lc_color');
+            let color_label_css=getComputedStyle(color_label, null);
+            set_color=color_label_css.getPropertyValue("background-color");
+            lc_color.style.background=set_color;
+            let lc_trance=document.querySelector('#lc_trance');
+            lc_trance.value=1;
+            let link=card.querySelector('.ogpCard_link');
+            if(card.classList.contains('edit_card')){
+                link.style.backgroundColor=set_color; }
+            monitor_p.disconnect(); } // アイコンカラー取得終了
+
+
+        let lc_trance=document.querySelector('#lc_trance');
+        lc_trance.addEventListener('input', function(event){
+            event.preventDefault();
+            let lc_color=document.querySelector('#lc_color');
+            let lc_css=getComputedStyle(lc_color, null);
+            set_color=lc_css.getPropertyValue("background-color");
+
+            set_color=rgba(set_color, lc_trance.value);
+            lc_color.style.background=set_color;
+
+            let link=card.querySelector('.ogpCard_link');
+            let content=card.querySelector('.ogpCard_content');
+            if(card.classList.contains('edit_card')){
+                link.style.backgroundColor=set_color;
+                content.style.backgroundColor='unset'; }
+
+            function rgba(c_val, trance_val){
+                let R, G, B;
+                let c_val_arr=c_val.split(',');
+                R=c_val_arr[0].replace(/[^0-9]/g, '');
+                G=c_val_arr[1].replace(/[^0-9]/g, '');
+                B=c_val_arr[2].replace(/[^0-9]/g, '');
+                return 'rgba('+R+', '+G+', '+B+', '+trance_val+')' }});
+
+
+        let target_body=document.querySelector('.l-body'); // 監視 target
+        let monitor_generator=new MutationObserver(stealth);
+        monitor_generator.observe(target_body, {childList: true, subtree: true});
+
+        function stealth(){
+            let color_generator=document.querySelector('.ck-l-colorGenerator');
+            if(color_generator){
+                color_generator.addEventListener('mousedown', function(event){
+                    event.stopImmediatePropagation(); }); }}
+
+    } // bgcolor_set()
+
+
+    function select_span(){
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){ // WYSIWYG表示が実行条件
+            iframe_doc=editor_iframe.contentWindow.document;
+            if(iframe_doc){
+                iframe_doc.onclick=function(event){
+                    if(event.ctrlKey){
+                        let elem=iframe_doc.elementFromPoint(event.clientX, event.clientY);
+
+                        let closest_ogp=elem.closest('.ogpCard_root');
+                        if(closest_ogp && closest_ogp.classList.contains('edit_card')){
+                            if(elem.classList.contains('ogpCard_title') ||
+                               elem.classList.contains('ogpCard_description') ||
+                               elem.classList.contains('ogpCard_urlText') ||
+                               elem.parentNode.classList.contains('ogpCard_description')){
+                                selection=iframe_doc.getSelection(); //Selection取得
+                                range=iframe_doc.createRange(); //Range生成
+                                range.selectNodeContents(elem);
+                                selection.removeAllRanges();
+                                selection.addRange(range); }}}}}}}
+
+
+    function moz(card){
+        let ogpCard_wrap=card.querySelector('.ogpCard_wrap'); // 監視対象
+        let monitor_br=new MutationObserver(no_br);
+        monitor_br.observe(ogpCard_wrap, {childList: true}); // 子要素の変化を監視
+
+        function no_br(){
+            let br_moz=ogpCard_wrap.querySelector('br[type="_moz"]');
+            if(br_moz){
+                br_moz.remove(); }}}
+
+
+    function set_url(card){
+        let write_url=document.querySelector('#write_url');
+
+        write_url.onclick=function(){
+            new_url=document.querySelector('#new_url').value;
+            if(new_url!=''){
+
+                if(card.classList.contains('edit_card')){
+                    let ogpCard_link=card.querySelector('.ogpCard_link');
+                    ogpCard_link.setAttribute('href', new_url);
+                    let data_cke_saved_href=ogpCard_link.getAttribute('data-cke-saved-href');
+                    if(data_cke_saved_href){
+                        ogpCard_link.setAttribute('data-cke-saved-href', new_url); }}}}}
+
+
+    function lb_width(card){
+        let link=card.querySelector('.ogpCard_link');
+        let link_w= parseInt(getComputedStyle(link, null ).getPropertyValue('border-top-width'));
+        let lborder=document.querySelector('#lborder');
+        lborder.value=link_w;
+        lborder.onchange=function(){
+            link.style.borderWidth=lborder.value+'px'; }}
+
+
+    function lb_reset(){
+        let lborder=document.querySelector('#lborder');
+        lborder.value='';
+        let lb_color=document.querySelector('#lb_color');
+        lb_color.style.background='#fff'; }
+
+
+    function sign(){
+        monitor0.disconnect(); // 起動時セットアップを MutationObserverに反応させない
+
+        let disp=document.createElement("div");
+        disp.setAttribute("id", "disp_le");
+        disp.innerHTML=
+            '　　■ LinkCard Editor　カード指定：Ctrl+Click　小型化と配置：'+
+            '<span id="al"><i class="fas fa-caret-square-left"></i></span>'+
+            '<span id="ac"><i class="fas fa-square"></i></span>'+
+            '<span id="ar"><i class="fas fa-caret-square-right"></i></span>'+
+            '　背景色：<span id="lc_w"><span id="lc_color">　</span></span> '+
+            '<input id="lc_trance" type="number" max="1" min="0.1" step="0.1" value="1">'+
+            '<span id="ex_sw"><i class="fas fa-cogs"></i></span>'+
+            '<div id="ex_disp"><input id="new_url" type="url" placeholder="変更するURLを入力">'+
+            '<span id="write_url"><i class="fas fa-pen-square"></i></span>'+
+            '　枠線幅：<input id="lborder" type="number" max="5" min="0">'+
+            '　線色：<span id="lb_w"><span id="lb_color">　</span></span></div>';
+
+        let css=
+            '@import url("https://use.fontawesome.com/releases/v5.0.6/css/all.css"); '+
+            '#cke_1_contents { display: flex; flex-direction: column; } '+
+            '#disp_le { margin: 0 0 5px; padding: 4px 0 1px; white-space: nowrap; '+
+            'font: normal 16px/24px Meiryo; color: #fff; background: #607d8b; } '+
+            '#al, #ac, #ar { cursor: pointer; font-size: 20px; line-height: 16px; '+
+            'margin-right: 4px; vertical-align: -1px; } '+
+            '#lc_w { display: inline-block; width: 16px; height: 16px; overflow: hidden; '+
+            'border: 1px solid #fff; background: #fff; vertical-align: -3px; } '+
+            '#lc_color { cursor: pointer; background: #fff; } '+
+            '#lc_trance { height: 22px; width: 15px; border: none; margin-right: 20px; '+
+            'vertical-align: 1px; background: transparent; color: transparent; } '+
+            '#lc_trance::-webkit-inner-spin-button { opacity: 1; } '+
+            '#ex_sw { cursor: pointer; display: inline-block; padding: 1px 1px 0; '+
+            'line-height: 16px; color: #fff; background: #333; '+
+            'border: 1px solid #ccc; border-radius: 2px; } '+
+            '#ex_disp { display: none; } '+
+            '#new_url { height: 18px; width: 376px; padding: 3px 2px 0 15px; '+
+            'margin: 2px 10px 2px 53px; color: #000; } '+
+            '#write_url { cursor: pointer; font-size: 20px; color: #8cf2ff; } '+
+            '#lborder { height: 22px; width: 32px; border: none; color: #fff; '+
+            'font-weight: bold; background: transparent; } '+
+            '#lborder::-webkit-inner-spin-button { opacity: 1; } '+
+            '#lb_w { display: inline-block; width: 16px; height: 16px; overflow: hidden; '+
+            'border: 1px solid #fff; background: #fff; vertical-align: -3px; } '+
+            '#lb_color { cursor: pointer; background: #fff; }';
+
+
+        let style=document.createElement('style'); // disp_le のデザインを指定
+        style.setAttribute("id", "le_style");
+        style.innerHTML=css;
+        disp.appendChild(style);
+
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){
+            if(!target0.querySelector('#disp_le')){
+                target0.insertBefore(disp, editor_iframe); }}
+
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        if(editor_iframe){
+            iframe_doc=editor_iframe.contentWindow.document;
+            if(iframe_doc){
+                let iframe_html=iframe_doc.querySelector('html');
+                iframe_body=iframe_doc.querySelector('body');
+                if(iframe_html && iframe_body){
+                    let card_style= iframe_doc.createElement('style'); // 選択Card のデザインを指定
+                    let css='.edit_card { outline: 2px solid #2196f3; outline-offset: 6px; }';
+                    card_style.setAttribute("id", "card_style");
+                    card_style.innerHTML=css;
+                    if(!iframe_html.querySelector('#card_style')){
+                        iframe_html.appendChild(card_style); }}}}
+
+        monitor0.observe(target0, {childList: true}); // monitor0 の監視を再設定
+
+        let disp_le=document.querySelector('#disp_le');
+        disp_le.style.display='block';
+        if(set_color!=null){
+            let lc_color=document.querySelector('#lc_color');
+            lc_color.style.background=set_color; }
+
+        let photos_w=document.querySelector('#js-photos-wrapper');
+        photos_w.style.outline='2px solid #2196f3'; // 画像パレットに青枠表示
+
+        document.querySelector('#new_url').value=new_url; // url入力枠の入力値を表示
+
+        disp_ex();
+    } // sign()
+
+
+    function disp_ex(){
+        let ex_sw=document.querySelector('#ex_sw');
+        let ex_disp=document.querySelector('#ex_disp');
+        if(ex_mode==1){
+            ex_disp.style.display='block'; }
+        else{
+            ex_disp.style.display='none'; }
+
+        ex_sw.onclick=function(){
+            if(ex_mode==0){
+                ex_mode=1;
+                ex_disp.style.display='block';
+                let url_in=document.querySelector('#new_url');
+                url_in.addEventListener('input', function(){
+                    new_url=url_in.value; }); }
+            else{
+                ex_mode=0;
+                ex_disp.style.display='none';
+                new_url=''; // url入力をリセット
+                document.querySelector('#new_url').value=''; }}} // url入力枠をリセット
+
+
+    function sign_clear(){
+        if(target0.querySelector('#disp_le')){
+            target0.querySelector('#disp_le').style.display='none'; } // 起動表示を非表示
+        let photos_w=document.querySelector('#js-photos-wrapper');
+        photos_w.style.outline=''; // 画像パレットの青枠を削除
+        new_url=''; } // url入力をリセット
+
+
+    function before_end(){
+        editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+        let submitButton=document.querySelectorAll('.js-submitButton');
+        submitButton[0].addEventListener("click", all_close, false);
+        submitButton[1].addEventListener("click", all_close, false);
+
+        function all_close(){
+            if(mode==1){
+                if(!editor_iframe){ //「HTML表示」編集画面の場合
+                    alert("⛔　LinkCard Editor が処理を終了していません\n\n"+
+                          "　　 通常表示画面に戻り 編集を終了してください");
+                    event.stopImmediatePropagation();
+                    event.preventDefault(); }
+                else if(editor_iframe){ //「通常表示」編集画面の場合
+                    mode=0;
+                    card_close(); }}}
+    } // before_end()
+
+} // main()
