@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        LinkCard Editor ⭐
 // @namespace        http://tampermonkey.net/
-// @version        5.8
+// @version        5.9
 // @description        通常表示でリンクカードを編集 「Ctrl+F6」
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/entry/srventry*
@@ -313,6 +313,7 @@ function main(){
                 link.insertAdjacentHTML('beforeend', imgw); } // カバー画像が無い場合にエリア確保
 
             slim_title(card);
+            repair_title(card);
             slim_icon(card);
 
             item_setter(card);
@@ -343,6 +344,18 @@ function main(){
                     if(title_str.slice(0, 1)=='『' && title_str.slice(-1)=='』'){
                         title_str=title_str.slice(1).slice(0, -1); }
                     title.innerHTML=title_str; }}}}
+
+
+
+    function repair_title(card){ // 三点リーダー配置のバグを修正
+        if(card.classList.contains('edit_card')){
+            let title=card.querySelector('.ogpCard_title');
+            if(title){
+                if(title.style.WebkitLineClamp=='1'){
+                    title.style.maxHeight='22px'; }
+                else{
+                    title.style.maxHeight='44px'; }
+                title.style.lineHeight='1.25'; }}}
 
 
 
@@ -621,7 +634,7 @@ function main(){
             content.style.justifyContent='inherit'; }
         let title=card.querySelector('.ogpCard_title');
         if(title){
-            title.style.maxHeight='39px';
+            title.style.maxHeight='44px';
             title.style.flexShrink='0';
             title.style.font='bold 16px/1.25 Meiryo';
             title.style.WebkitLineClamp='2'; }
@@ -662,7 +675,7 @@ function main(){
             content.style.justifyContent='inherit'; }
         let title=card.querySelector('.ogpCard_title');
         if(title){
-            title.style.maxHeight='19px';
+            title.style.maxHeight='22px';
             title.style.flexShrink='1';
             title.style.font='bold 16px/1.25 Meiryo';
             title.style.WebkitLineClamp='1'; }
