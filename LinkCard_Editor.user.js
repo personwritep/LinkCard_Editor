@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name        LinkCard Editor ⭐
 // @namespace        http://tampermonkey.net/
-// @version        5.9
+// @version        6.0
 // @description        通常表示でリンクカードを編集 「Ctrl+F6」
 // @author        Ameba Blog User
-// @match        https://blog.ameba.jp/ucs/entry/srventry*
-// @exclude        https://blog.ameba.jp/ucs/entry/srventrylist.do*
+// @match        https://blog.ameba.jp/ucs/entry/srventryinsertinput.do*
+// @match        https://blog.ameba.jp/ucs/entry/srventryupdateinput.do*
 // @icon        https://www.google.com/s2/favicons?sz=64&domain=ameblo.jp
 // @grant        none
 // @updateURL        https://github.com/personwritep/LinkCard_Editor/raw/main/LinkCard_Editor.user.js
@@ -201,9 +201,9 @@ function main(){
         if(elem.textContent){
             if(elem.closest('.ogpCard_title')){
                 select_parent=card.querySelector('.ogpCard_title'); }
-            if(elem.closest('.ogpCard_description')){
+            else if(elem.closest('.ogpCard_description')){
                 select_parent=card.querySelector('.ogpCard_description'); }
-            if(elem.closest('.ogpCard_urlText')){
+            else if(elem.closest('.ogpCard_urlText')){
                 select_parent=card.querySelector('.ogpCard_urlText'); }}
         return select_parent; }
 
