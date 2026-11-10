@@ -14,6 +14,7 @@
 
 
 let listen=Symbol();
+let listen2=Symbol();
 
 
 let mode=0; // ツールのON/OFF
@@ -854,9 +855,10 @@ function main(){
                     target.style.color=sw.style.color; }}
             monitor_p.disconnect(); }
 
-
-        document.onmousedown=()=>{
-            monitor_p.disconnect(); }
+        if(!document[listen2]){
+            document.addEventListener('mousedown', function(){
+                monitor_p.disconnect(); });
+            document[listen2]=true; }
 
 
         if(document.querySelector('.cke_wysiwyg_frame')!=null){
@@ -864,8 +866,10 @@ function main(){
             if(editor_iframe){
                 iframe_doc=editor_iframe.contentWindow.document;
                 if(iframe_doc){
-                    iframe_doc.onmousedown=()=>{
-                        monitor_p.disconnect(); }}}}
+                    if(!iframe_doc[listen2]){
+                        iframe_doc.addEventListener('mousedown', function(){
+                            monitor_p.disconnect(); });
+                        iframe_doc[listen2]=true; }}}}
 
 
         let target_body=document.querySelector('.l-body');
