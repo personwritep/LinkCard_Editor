@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        LinkCard Editor ⭐
 // @namespace        http://tampermonkey.net/
-// @version        6.0
+// @version        6.1
 // @description        通常表示でリンクカードを編集 「Ctrl+F6」
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/entry/srventryinsertinput.do*
@@ -11,6 +11,9 @@
 // @updateURL        https://github.com/personwritep/LinkCard_Editor/raw/main/LinkCard_Editor.user.js
 // @downloadURL        https://github.com/personwritep/LinkCard_Editor/raw/main/LinkCard_Editor.user.js
 // ==/UserScript==
+
+
+let listen=Symbol();
 
 
 let mode=0; // ツールのON/OFF
@@ -62,6 +65,10 @@ function main(){
     catch_key();
 
     function catch_key(){
+        if(!document[listen]){
+            document.addEventListener('keydown', check_key);
+            document[listen]=true; }
+
         editor_iframe=document.querySelector('.cke_wysiwyg_frame');
         if(editor_iframe){
             iframe_doc=editor_iframe.contentWindow.document;
@@ -69,32 +76,38 @@ function main(){
 
                 when_back();
 
-                iframe_doc.addEventListener('keydown', check_key);
-                document.addEventListener('keydown', check_key);
+                if(!iframe_doc[listen]){
+                    iframe_doc.addEventListener('keydown', check_key);
+                    iframe_doc[listen]=true; }}}
 
-                function check_key(event){
-                    if(event.ctrlKey && event.keyCode==117){
-                        event.preventDefault();
-                        event.stopImmediatePropagation();
-                        if(mode==0 && editor_iframe){
-                            mode=1;
-                            sign();
-                            card_edit(); }
-                        else if(mode==1 && editor_iframe){
-                            mode=0;
-                            mode_e=0;
-                            mode_c=0;
-                            sign_clear();
-                            card_close(); }}
 
-                    if(event.keyCode==116){
-                        event.preventDefault();
-                        event.stopImmediatePropagation();
-                        alert(
-                            "　⛔　F5 / Ctrl + F5 / Shift + F5　\n"+
-                            "　　　　このショートカットは現在のページを遷移して、編集中の\n"+
-                            "　　　　データを損失する可能性があるので、無効にしています。\n"+
-                            "　　　　　　-----　LinkCard Editor　-----"); }}}}
+        function check_key(event){
+            if(event.ctrlKey && event.keyCode==117){
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                if(mode==0 && editor_iframe){
+                    mode=1;
+                    sign();
+                    item_setter();
+                    card_edit(); }
+                else if(mode==1 && editor_iframe){
+                    mode=0;
+                    mode_e=0;
+                    mode_c=0;
+                    sign_clear();
+                    card_close(); }}
+
+            if(event.keyCode==116){
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                alert(
+                    "　⛔　F5 / Ctrl + F5 / Shift + F5　\n"+
+                    "　　　　このショートカットは現在のページを遷移して、編集中の\n"+
+                    "　　　　データを損失する可能性があるので、無効にしています。\n"+
+                    "　　　　　　-----　LinkCard Editor　-----"); }
+
+        } // check_key()
+
 
         before_end();
 
@@ -245,7 +258,7 @@ function main(){
         elem.style.outline='2px solid #2196f3';
         elem.style.outlineOffset='3px';
 
-        elem.addEventListener('keydown', (e)=>{
+        elem.onkeydown=(e)=>{
             if(e.ctrlKey && e.keyCode=='86'){
                 if(ua==1){
                     e.preventDefault();
@@ -255,7 +268,7 @@ function main(){
                     if(!e.shiftKey){
                         e.preventDefault();
                         e.stopImmediatePropagation();
-                        alert("「Ctrl+Shift+V」で貼付けてください"); }}}});
+                        alert("「Ctrl+Shift+V」で貼付けてください"); }}}}
 
         if(n==1){
             selection=iframe_doc.getSelection();
@@ -316,7 +329,7 @@ function main(){
             repair_title(card);
             slim_icon(card);
 
-            item_setter(card);
+            //    item_setter(); // check_keyで実行済
             align_in(card);
             size_in(card);
             bg_color(card);
@@ -383,22 +396,22 @@ function main(){
 
 
 
-    function item_setter(card){
-        let target_i=document.querySelector('#js-photos-imageList');
-        let monitor_i=new MutationObserver(item_select);
-        monitor_i.observe(target_i, {childList: true, subtree: true}); // 画像パレット監視
+    function item_setter(){
+        let imgList=document.querySelector('#js-photos-imageList');
+        if(imgList){
+            if(!imgList[listen]){
+                imgList.addEventListener('click', function(event){
+                    if(mode==1){
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        let item=event.target.closest('.p-images-imageList__item');
+                        if(item){
+                            set_img(event, item); }}}, { capture: true });
+                imgList[listen]=true; }}
 
-        item_select();
 
-        function item_select(){
-            let item=document.querySelectorAll('.p-images-imageList__item');
-            for(let k=0; k<item.length; k++){
-                item[k].addEventListener('click', function(event){
-                    set_img(event, item[k]); }); }}
-
-        function set_img(e, item){
+        function set_img(event, item){
             if(mode==1){
-                e.stopImmediatePropagation();
                 let img_src=item.getAttribute('data-image');
                 let inner=
                     '<img class="ogpCard_image" loading="lazy" '+
@@ -407,44 +420,37 @@ function main(){
                     'style="position: absolute; top: 50%; left: 50%; object-fit: cover; '+
                     'min-height: 100%; min-width: 100%; transform: translate(-50%,-50%)">';
 
-                editor_iframe=document.querySelector('.cke_wysiwyg_frame');
-                if(editor_iframe){
-                    let target_card=iframe_body.querySelectorAll('.ogpCard_root');
-                    for(let k=0; k<target_card.length; k++){
-                        if(target_card[k].classList.contains('edit_card')){
-                            range_con(target_card[k]);
-                            let card_imgw=
-                                target_card[k].querySelector('.ogpCard_imageWrap');
-                            if(card_imgw){
-                                card_imgw.innerHTML=inner; }}}
+                if(active_imgw()){
+                    let card_imgw=active_imgw();
+                    card_imgw.innerHTML=inner; }}
 
-                    function range_con(card){
-                        if(mode==1){
-                            selection=iframe_doc.getSelection();
-                            range=iframe_doc.createRange();
-                            range.setStart(card, 0);
-                            range.setEnd(card, 0);
-                            selection.removeAllRanges();
-                            selection.addRange(range); }}
-
-                }}} // set_img()
+        } // set_img()
 
 
-        item_sign(card);
+        function active_imgw(){
+            editor_iframe=document.querySelector('.cke_wysiwyg_frame');
+            if(editor_iframe){
+                let target_card=iframe_body.querySelectorAll('.ogpCard_root');
+                for(let k=0; k<target_card.length; k++){
+                    if(target_card[k].classList.contains('edit_card')){
+                        let card_imgw=target_card[k].querySelector('.ogpCard_imageWrap');
+                        if(card_imgw){
+                            return card_imgw; }}}}}
 
-        function item_sign(card){
-            let photos_w=document.querySelector('#js-photos-wrapper');
-            photos_w.addEventListener('mouseover', function(){
-                let imageWrap=card.querySelector('.ogpCard_imageWrap');
-                if(imageWrap && card.classList.contains('edit_card')){
-                    imageWrap.style.filter='invert(1)';
-                    imageWrap.style.background='#442814'; }});
 
-            photos_w.addEventListener('mouseout', function(){
-                let imageWrap=card.querySelector('.ogpCard_imageWrap');
-                if(imageWrap && card.classList.contains('edit_card')){
-                    imageWrap.style.filter='';
-                    imageWrap.style.background=''; }}); }
+        let photos_w=document.querySelector('#js-photos-wrapper');
+        photos_w.onmouseover=()=>{
+            if(active_imgw()){
+                let card_imgw=active_imgw();
+                card_imgw.style.filter='invert(1)';
+                card_imgw.style.background='#442814'; }}
+
+
+        photos_w.onmouseout=()=>{
+            if(active_imgw()){
+                let card_imgw=active_imgw();
+                card_imgw.style.filter='';
+                card_imgw.style.background=''; }}
 
     } // item_setter()
 
@@ -771,14 +777,14 @@ function main(){
                 monitor_elem.observe(target_elem, {attributes: true}); }}
 
 
-        lc_trance.addEventListener('input', function(event){
+        lc_trance.oninput=(event)=>{
             event.preventDefault();
             let set_color_tmp=rgba(set_color, lc_trance.value);
             let lc_color=document.querySelector('#lc_color');
             lc_color.style.backgroundColor=set_color_tmp;
             let link=card.querySelector('.ogpCard_link');
             if(card.classList.contains('edit_card')){
-                link.style.backgroundColor=set_color_tmp; }});
+                link.style.backgroundColor=set_color_tmp; }}
 
 
         function rgba(c_val, alpha){ // 透過色の白背景時の非透過色に変換
@@ -849,8 +855,8 @@ function main(){
             monitor_p.disconnect(); }
 
 
-        document.addEventListener('mousedown', function(){
-            monitor_p.disconnect(); });
+        document.onmousedown=()=>{
+            monitor_p.disconnect(); }
 
 
         if(document.querySelector('.cke_wysiwyg_frame')!=null){
@@ -858,8 +864,8 @@ function main(){
             if(editor_iframe){
                 iframe_doc=editor_iframe.contentWindow.document;
                 if(iframe_doc){
-                    iframe_doc.addEventListener('mousedown', function(){
-                        monitor_p.disconnect(); }); }}}
+                    iframe_doc.onmousedown=()=>{
+                        monitor_p.disconnect(); }}}}
 
 
         let target_body=document.querySelector('.l-body');
@@ -869,8 +875,8 @@ function main(){
         function stealth(){
             let color_generator=document.querySelector('.ck-l-colorGenerator');
             if(color_generator){
-                color_generator.addEventListener('mousedown', function(event){
-                    event.stopImmediatePropagation(); }); }}
+                color_generator.onmousedown=(event)=>{
+                    event.stopImmediatePropagation(); }}}
 
     } // import_color()
 
@@ -1610,8 +1616,12 @@ function main(){
     function before_end(){
         editor_iframe=document.querySelector('.cke_wysiwyg_frame');
         let submitButton=document.querySelectorAll('.js-submitButton');
-        submitButton[0].addEventListener("mousedown", all_close, false);
-        submitButton[1].addEventListener("mousedown", all_close, false);
+        if(!submitButton[0][listen]){
+            submitButton[0].addEventListener("mousedown", all_close, false);
+            submitButton[0][listen]=true; }
+        if(!submitButton[1][listen]){
+            submitButton[1].addEventListener("mousedown", all_close, false);
+            submitButton[1][listen]=true; }
 
         function all_close(){
             if(mode==1){
@@ -1659,6 +1669,5 @@ function main(){
                 lcard_set[11]=0; }}
 
     } // help_set()
-
 
 } // main()
